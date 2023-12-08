@@ -177,7 +177,7 @@ data:
       tracing:
         zipkin:
           # Address of the Zipkin collector
-          address: zipkin.istio-system:9411
+          address: zipkin.servicemesh:9411
       #
       # Mutual TLS authentication between sidecars and istio control plane.
       controlPlaneAuthPolicy: NONE

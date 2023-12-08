@@ -23,7 +23,7 @@ WD=$(cd $WD; pwd)
 
 function setup_test() {
   local DIRNAME="${1:?"test directory"}"
-  local NAMESPACE="${NAMESPACE:-"$1"}"
+  local NAMESPACE="${NAMESPACE:-istio-stability-"$1"}"
   local HELM_ARGS="${2:-}"
 
   mkdir -p "${WD}/tmp"

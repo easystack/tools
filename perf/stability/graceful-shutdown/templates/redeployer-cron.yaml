@@ -9,7 +9,7 @@ kind: ClusterRole
 metadata:
   name: graceful-shutdown-role
 rules:
-  - apiGroups: ["extensions"]
+  - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "patch"]
 ---

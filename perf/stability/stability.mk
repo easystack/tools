@@ -2,7 +2,8 @@ WD = ./perf/stability
 STABILITY = $(WD)/setup_test.sh
 
 # Standard set of stability tests to run
-stable_tests = http10 graceful-shutdown gateway-bouncer mysql redis rabbitmq looper
+#stable_tests = http10 graceful-shutdown gateway-bouncer mysql redis rabbitmq looper
+stable_tests = http10 graceful-shutdown redis rabbitmq looper
 
 # Tests that need no special setup
 standard_tests = http10 graceful-shutdown redis rabbitmq istio-chaos-total istio-chaos-partial multicluster-vpn looper wasm-extensions

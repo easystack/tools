@@ -66,7 +66,7 @@ spec:
                       for COMPONENT in ${TO_SCALE[@]}
                       do
                           log "Scaling $COMPONENT to $2..."
-                          kubectl scale deployment/$COMPONENT --replicas $2 -n istio-system
+                          kubectl scale deployment/$COMPONENT --replicas $2 -n servicemesh
                       done
                   }
 

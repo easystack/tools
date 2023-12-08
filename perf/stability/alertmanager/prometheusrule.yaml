@@ -60,25 +60,25 @@ spec:
             summary: "Proxy Container Memory usage (namespace {{ $labels.namespace }}) (pod {{ $labels.pod }}) (container {{ $labels.container }})  VALUE = {{ $value }}\n"
             description: "Proxy Container Memory usage is above 80%"
         - alert: IngressMemoryUsageIncreaseRateHigh
-          expr: avg(deriv(container_memory_working_set_bytes{container=~"istio-proxy",namespace="istio-system"}[60m])) > 200
+          expr: avg(deriv(container_memory_working_set_bytes{container=~"istio-proxy",namespace="servicemesh"}[60m])) > 200
           for: 180m
           annotations:
             summary: "Ingress proxy Memory change rate, VALUE = {{ $value }}\n"
             description: "Ingress proxy Memory Usage increases more than 200 Bytes/sec"
         - alert: IstiodContainerCPUUsageHigh
-          expr: (sum(rate(container_cpu_usage_seconds_total{namespace="istio-system", container="discovery"}[5m])) BY (pod) * 100) > 80
+          expr: (sum(rate(container_cpu_usage_seconds_total{namespace="servicemesh", container="discovery"}[5m])) BY (pod) * 100) > 80
           for: 5m
           annotations:
             summary: "Istiod Container CPU usage (namespace {{ $labels.namespace }}) (pod {{ $labels.pod }}) (container {{ $labels.container }}) VALUE = {{ $value }}\n"
             description: "Isitod Container CPU usage is above 80%"
         - alert: IstiodMemoryUsageHigh
-          expr: (sum(container_memory_working_set_bytes{namespace="istio-system", container="discovery"}) BY (pod)  / (sum(container_spec_memory_limit_bytes{namespace="istio-system", container="discovery"}) BY (pod) > 0)* 100) > 80
+          expr: (sum(container_memory_working_set_bytes{namespace="servicemesh", container="discovery"}) BY (pod)  / (sum(container_spec_memory_limit_bytes{namespace="servicemesh", container="discovery"}) BY (pod) > 0)* 100) > 80
           for: 5m
           annotations:
             summary: "Istiod Container Memory usage (namespace {{ $labels.namespace }}) (pod {{ $labels.pod }}) (container {{ $labels.container }}) VALUE = {{ $value }}\n"
             description: "Istiod Container Memory usage is above 80%"
         - alert: IstiodMemoryUsageIncreaseRateHigh
-          expr: sum(deriv(container_memory_working_set_bytes{namespace="istio-system",pod=~"istiod-.*"}[60m])) > 1000
+          expr: sum(deriv(container_memory_working_set_bytes{namespace="servicemesh",pod=~"istiod-.*"}[60m])) > 1000
           for: 300m
           annotations:
             summary: "Istiod Container Memory usage increase rate high, VALUE = {{ $value }}\n"
@@ -104,7 +104,7 @@ spec:
             summary: 'istiod container not ready'
             description: 'container: discovery not running'
           expr: >
-            kube_pod_container_status_running{namespace="istio-system", container="discovery", component=""} == 0
+            kube_pod_container_status_running{namespace="servicemesh", container="discovery", component=""} == 0
           for: 5m
         - alert: IstiodUnavailableReplica
           annotations:

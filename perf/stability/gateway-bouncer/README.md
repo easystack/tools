@@ -2,7 +2,7 @@
 
 This scenario spins up a minimal 'isolated' setup that can be used for testing
 or the IngressGateway in ways that are either destructive or require setup
-that is not compatible with the default gateways under `istio-system`.
+that is not compatible with the default gateways under `servicemesh`.
 
 One the setup is up and running the following capabilities are exercised:
 

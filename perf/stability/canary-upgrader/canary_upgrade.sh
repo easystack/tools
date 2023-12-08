@@ -39,7 +39,7 @@ function install_istioctl() {
 }
 
 # existing revision
-REV_LIST=$(kubectl get pods -n istio-system -lapp=istiod --sort-by=.status.startTime -o "jsonpath={.items[*].metadata.labels.istio\.io\/rev}")
+REV_LIST=$(kubectl get pods -n servicemesh -lapp=istiod --sort-by=.status.startTime -o "jsonpath={.items[*].metadata.labels.istio\.io\/rev}")
 EXISTING_REV=$(echo "${REV_LIST}" | cut -f1 -d' ')
 
 download_release
@@ -48,8 +48,8 @@ NEW_REV="canary-${SUFFIX}"
 install_istioctl
 
 # verify whether canary one exist
-podc=$(kubectl -n istio-system get pods -l istio.io/rev="${NEW_REV}" | grep -c istiod)
-svcc=$(kubectl -n istio-system get svc -l istio.io/rev="${NEW_REV}" | grep -c istiod)
+podc=$(kubectl -n servicemesh get pods -l istio.io/rev="${NEW_REV}" | grep -c istiod)
+svcc=$(kubectl -n servicemesh get svc -l istio.io/rev="${NEW_REV}" | grep -c istiod)
 if [[ ${podc} == 0 ]] || [[ ${svcc} == 0 ]]; then
   echo "canary deployment not available"
   exit 1
@@ -77,8 +77,8 @@ kubectl set env deployment/am-webhook -n istio-prometheus BRANCH="${VERSION}"
 
 # get memory profile
 # shellcheck disable=SC2155
-export POD=$(kubectl get pod -l app=istio-ingressgateway -o jsonpath="{.items[0].metadata.name}" -n istio-system)
-export NS=istio-system
+export POD=$(kubectl get pod -l app=istio-ingressgateway -o jsonpath="{.items[0].metadata.name}" -n servicemesh)
+export NS=servicemesh
 kubectl exec "${POD}" -n "${NS}" -c istio-proxy -- curl -X POST -s "http://localhost:15000/heapprofiler?enable=y"
 sleep 15
 kubectl exec "${POD}" -n "${NS}" -c istio-proxy -- curl -X POST -s "http://localhost:15000/heapprofiler?enable=n"

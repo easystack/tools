@@ -16,8 +16,8 @@ spec:
       containers:
         - name: http10-client
           image: {{ .Values.curlImage }}
+          command: ["/bin/sh"]
           args:
-            - bash
             - -c
             - |-
               while true; do

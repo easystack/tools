@@ -19,7 +19,7 @@ WD=$(cd "$WD"; pwd)
 
 set -eux
 
-declare -a namespaces=("istio-system" )
+declare -a namespaces=("servicemesh" )
 # shellcheck disable=SC2004
 for ((ii=0; ii<15; ii++)) {
     ns=$(printf 'service-graph%.2d' "${ii}")

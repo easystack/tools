@@ -53,9 +53,9 @@ spec:
                 - |-
                   #!/bin/bash
                   function force_redeploy() {
-                    kubectl set env --all deployment --env="LAST_MANUAL_RESTART=$(date +%s)" -n istio-system
+                    kubectl set env --all deployment --env="LAST_MANUAL_RESTART=$(date +%s)" -n servicemesh
                   }
-                  echo "`date`: upgrading all deployments in istio-system"
+                  echo "`date`: upgrading all deployments in servicemesh"
                   force_redeploy
           restartPolicy: OnFailure
 

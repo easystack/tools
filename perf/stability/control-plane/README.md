@@ -10,7 +10,7 @@ This directory tests the stability of istiod when security policies are deployed
 
     `istioctl dashboard prometheus -n istio-prometheus`
 
-    `istioctl dashboard grafana -n istio-system`
+    `istioctl dashboard grafana -n servicemesh`
 
 3) Grafana dashboard is running on `localhost:3000`, you can check the istio-controlplane dashboard there to see the various metrics.
 

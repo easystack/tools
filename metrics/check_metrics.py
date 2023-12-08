@@ -41,7 +41,7 @@ def find_prometheus():
         )
         return "istio-prometheus", "statefulset/prometheus-istio-prometheus"
     except subprocess.CalledProcessError:
-        return "istio-system", "deployment/prometheus"
+        return "emla-monitoring-system", "deployment/thanos-query-ecms"
 
 
 def setup_promethus():
@@ -52,7 +52,7 @@ def setup_promethus():
         '-n', namespace,
         'port-forward',
         deployment,
-        '%s:9090' % port
+        '%s:10902' % port
     ], stdout=subprocess.PIPE)
     port_forward.stdout.readline()  # Wait for port forward to be ready
     return Prometheus('http://localhost:%s/' % port, pid=port_forward.pid)

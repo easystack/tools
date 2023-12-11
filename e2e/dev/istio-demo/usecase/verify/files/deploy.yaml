@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mockserver-v1
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: mockserver
+      version: v1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: mockserver
+        version: v1
+    spec:
+      nodeSelector:
+        #node.es.io/esm: enabled
+         node-role.kubernetes.io/node: "true"
+      containers:
+      - image: hub.easystack.io/production/nginx:1.21
+        imagePullPolicy: IfNotPresent
+        name: mockserver
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mockserver-v2
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: mockserver
+      version: v2
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        app: mockserver
+        version: v2
+    spec:
+      nodeSelector:
+        #node.es.io/esm: enabled
+         node-role.kubernetes.io/node: "true"
+      containers:
+      - image: hub.easystack.io/production/nginx:1.21
+        imagePullPolicy: IfNotPresent
+        name: mockserver
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---        
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testclient
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: testclient
+  template:
+    metadata:
+      labels:
+        app: testclient
+    spec:
+      nodeSelector:
+        #node.es.io/esm: enabled
+         node-role.kubernetes.io/node: "true"
+      containers:
+      - image: hub.easystack.io/production/nginx:1.21
+        imagePullPolicy: IfNotPresent
+        name: mockserver
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30

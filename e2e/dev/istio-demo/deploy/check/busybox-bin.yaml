@@ -1,0 +1,244 @@
+apiVersion: v1
+data:
+  binshan.pem: |+
+    -----BEGIN RSA PRIVATE KEY-----
+    MIIEowIBAAKCAQEAyobZKnGyiIbK016ernIPVRQQTDiJE1JBipwxZQGEXA34Hc6r
+    Z13i30DD7kTO0voKIu75UEjbMmsSadVxvg2/K1kxFemZzbqfN5hFkmJPeXmg1/uf
+    XVLLSf+xQhU6hi6oucGrYRFrrr5y+UWyxphG0MmC879/WKAjGc2bzMcsTxiTTxkd
+    p7Rmt23IcrP81wRaDTxLq8k6V4uCl8ObVOunqJVN58ShPuwG5oy4MnFb3z7lgEBf
+    thBG7cziSttvKCo/CiraLR6Q8KeCZM0zfelct9s1ZHj864LN1r5EN5pzWgSJsp01
+    6v7TeAE/3Rmch5AWbo9WSk+5izucnboAtIIdnwIDAQABAoIBAQCAv+9I81TbRE2m
+    x+062xnyLTobKonB9bXi517jZm59kwfb8ym2IdJ7uRGV5LpTF0/gW2m1Z0uqJrVj
+    AKU5fEW+ygnRc1sqlWxojG4WHFeH0xG0nKr4Sg0gcuN+Lj6xVPJAfOV1ZPy+7yXq
+    YCvB4saKLsEIMgJEFjGaUsKsESaS9NvW4j5cJBRBxYjTYPVKmxboHMjJo73waLmU
+    RL/yNaCLDRely+MdosCSny5YlxmZkVQjGrENHut/8/doQZpEaMcqS2CtqGzafR1K
+    3cGIA6UCe6rU103Xo00M1W8se0bH0bzL7IMdMarzT62wYTOFG/1AyOKJENvZ/0Nk
+    5ioFcHAJAoGBAO1bhthrFEGQ0JqH9H09JOtjTrQloVNYluaO9uuKsWeOQbquw4D6
+    H4h7Q/u47oD5oa4Ae5rfrOwv3sxqPIxLCi789eSb9SBVZEmDjhtH6cLOqZG8mPqk
+    M56GsPH27HMB8X9RPid9BEH336E4RAqkpVkH31re4ifZ/zUVBAjv/vutAoGBANpu
+    /Xd0K2V6nHNc9TwGrY9es88qmVVIideQDqvs34JkYfk9vRHU/lluy07TpIams1t9
+    vF/fG32AmsmwnQCzmzbV4l1PrcpGOOtMjFwXUVLONYVMcYUMCccrBaWPlDedFJ2s
+    WFimvLwmX8i1hHGxd/0Cw5mDSOrc36/ijxqnEif7AoGAD1PBuWfwvusjDVeKKiww
+    niKjim6DpGYsGGdS+pLSMeW1yOBQL5v3PVD4auDeReXY0uulD7Mx726H7JtPnZ+a
+    4L3lAwYvJg9dkoG0Q365UaMWwBp1pnnD+5CnDHjte9+8QIR2hwZDqB7hif+gJS/M
+    nZssiSmrYPdqy3q37/vPc2ECgYACZKDmRCGNlRBNu0D8jV4tae4yYNcZNhg8glmG
+    zKuONCdWobSGk3zN4gbcMDlnOEBSykfcDQeyEkyf1Q2DSnRy31kBiLPwuWA6Q7Zt
+    89tyOswfT70WphEdW31OWQpYqaHmMFMvdXQv44O9IS/4Rud3oCYgcm3EFPNma+cB
+    db8fLQKBgERgMauLljIYtJZiTC5AEU/Hp4sEj+4gbZesMz9P1MrFRjteUj8uSA5d
+    d9bTQbXsYaLuXMe/QKgIMDAaA1HAaqc3lQn2P6QsXHNCKhKctDM9TTVbYpDW0vEG
+    q7mkod+51Wzj4s75eNbEVfnR5wr3LpV7fByyRgCUEpTrDhLFVeeK
+    -----END RSA PRIVATE KEY-----
+  check_gateway.sh: |+
+    #!/usr/bin/bash
+    if [ -z "$1" ];then
+      echo "please input host"
+      exit 1
+    fi
+    node_ip=`kubectl get node -owide|grep mas0|awk '{print $6}'`
+    ingress_gateway_ip=`kubectl get svc -nservicemesh istio-ingressgateway|awk '{print $4}'|grep 172`
+    cp /istio-check/binshan.pem ~/.ssh/binshan.pem
+    chmod 600 ~/.ssh/binshan.pem
+    while true
+    do
+      res=$( ssh -i ~/.ssh/binshan.pem escore@${node_ip} "curl -s -HHost:$1 ${ingress_gateway_ip} -o /dev/null -w \"%{http_code}\\n\"")
+      echo "host: $1"
+      echo "return code: $res"
+      sleep .5
+    done
+  check_route.sh: |+
+    #!/usr/bin/bash
+    if [ -z "$1" ];then
+      echo "please input version"
+      exit 1
+    fi
+    v1_cnt=0
+    v2_cnt=0 
+    echo "route to $1"
+    while true
+    do
+      res=$(curl -s -Hversion:$1 mockserver.canary)
+      if echo $res|grep v1>/dev/null;then
+        let v1_cnt++
+      fi
+      if echo $res|grep v2>/dev/null;then
+        let v2_cnt++
+      fi
+      echo "--------"
+      echo "v1:"$v1_cnt
+      echo "v2:"$v2_cnt
+      sleep .2
+    done
+
+  check_canary.sh: |+
+    #!/usr/bin/bash
+
+    v1_cnt=0
+    v2_cnt=0
+    echo "v1 : v2 = 1 : 4"
+    while true
+    do
+      res=$(curl -s mockserver.canary)
+      if echo $res|grep v1>/dev/null;then
+        let v1_cnt++
+      fi
+      if echo $res|grep v2>/dev/null;then
+        let v2_cnt++
+      fi
+      echo "--------"
+      echo "v1:"$v1_cnt
+      echo "v2:"$v2_cnt
+      sleep .2
+    done
+  check_fault.sh: |+
+    #!/usr/bin/bash
+
+    echo "delay 2s"
+    echo "return 503"
+    curl -s mockserver.fault-injection -vvv
+  
+  check_connection_pool.sh: |+
+    #!/usr/bin/bash
+
+    echo "limit http connection to 1"
+    sleep 2
+    while true
+    do
+      curl -s mockserver.connection-pool -o /dev/null -w "%{http_code}\n"|grep 5 &
+      sleep .002
+    done
+
+  check_outlier_detection.sh: |+
+    #!/usr/bin/bash
+
+    echo "v1 503 error, limit 5"
+    echo "5s interval, 10s baseEjectionTime, 100% maxEjectionPercent"
+    sleep 3
+    while true
+    do
+      res=`curl -s mockserver.outlier-detection -o /dev/null -w "%{http_code}\n"`
+      if [ "$res" = "503" ];then 
+          echo "v1 503"
+      fi
+      sleep .2
+    done
+
+  check_lb_consistent_hash_param.sh: |+
+    #!/usr/bin/bash
+    if [ -z "$1" ];then
+      echo "please input param_for_hash"
+      exit 1
+    fi
+
+    v1_cnt=0
+    v2_cnt=0
+    echo "param_for_hash=$1"
+    echo "url: http://mockserver.lb-consistent-hash?param_for_hash=$1"
+    sleep 2
+    while true
+    do
+      res=$(curl -s mockserver.lb-consistent-hash?param_for_hash=$1)
+      if echo $res|grep v1>/dev/null;then
+        let v1_cnt++
+      fi
+      if echo $res|grep v2>/dev/null;then
+        let v2_cnt++
+      fi
+      echo "--------"
+      echo "v1:"$v1_cnt
+      echo "v2:"$v2_cnt
+      sleep .2
+    done
+  
+  check_mirror.sh: |+
+    #!/usr/bin/bash
+
+    echo "mirror to v2"
+    sleep 2
+    v1_cnt=0
+    v2_cnt=0
+    while true
+    do
+      res=$(curl -s mockserver.mirror)
+      if echo $res|grep v1>/dev/null;then
+        let v1_cnt++
+      fi
+      if echo $res|grep v2>/dev/null;then
+        let v2_cnt++
+      fi
+      echo "--------"
+      echo "v1:"$v1_cnt
+      echo "v2:"$v2_cnt
+      sleep .2
+    done
+    kubectl get po -nmirror|grep v2|awk '{print $1}'|xargs kubectl -nmirror logs
+
+  check_timeout.sh: |+
+    #!/usr/bin/bash
+
+    echo "1ms timeout"
+    echo "return code: "`curl -s mockserver.timeout -o /dev/null -w "%{http_code}\n"`" (Gateway Timeout)"
+
+  check_retry.sh: |+
+    #!/usr/bin/bash
+
+    echo "v1 503 error"
+    echo "retry 3 times"
+    sleep 2
+    echo "return code: "`curl -s mockserver.retry -o /dev/null -w "%{http_code}\n"`
+    
+    echo "get v1 log"
+    sleep 2
+    kubectl get po -nretry|grep v1|awk '{print $1}'|xargs kubectl -nretry logs 
+
+  check_ratelimit_local.sh: |+
+    #!/usr/bin/bash
+
+    echo "limit 5 requests in 10 seconds"
+    sleep 2
+    while true
+    do
+      date +"%X"
+      curl -s mockserver.ratelimit-local -o /dev/null -w "%{http_code}\n"
+      sleep 1
+    done
+  
+  check_dubbo.sh: |+
+    #!/usr/bin/bash
+    if [ -z "$1" ];then
+      echo "please input param"
+      exit 1
+    fi
+
+    echo "send $1 to dubbo consumer"
+    echo "url: http://dubbo-sample-consumer.dubbo-demo:8383/hello?name=$1"
+    sleep 1
+    echo "return code: "`curl -s http://dubbo-sample-consumer.dubbo-demo:8383/hello?name=$1 -o /dev/null -w "%{http_code}\n"`
+    curl -s "http://dubbo-sample-consumer.dubbo-demo:8383/hello?name=$1"|cut -d 'c' -f 1
+  
+  check_spring.sh: |+
+    #!/usr/bin/bash
+
+    echo "send request to spring consumer"
+    sleep 1
+    curl -s springboot-consumer.spring-demo:9070/consumer/curl
+  
+  list_usecase.sh: |+
+    #!/usr/bin/bash
+
+    echo "check gateway"
+    echo "check route"
+    echo "check canary"
+    echo "check fault"
+    echo "check connection pool"
+    echo "check outlier detection"
+    echo "check lb consistent hash param"
+    echo "check mirror"
+    echo "check timeout"
+    echo "check retry"
+    echo "check ratelimit local"
+    echo "check dubbo"
+    echo "check spring"
+
+kind: ConfigMap
+metadata:
+  name: busybox-bin

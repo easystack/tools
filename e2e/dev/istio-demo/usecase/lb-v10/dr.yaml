@@ -1,0 +1,57 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mockserver
+spec:
+  host: mockserver
+  subsets:
+  - labels:
+      app: mockserver
+      version: v1
+    name: v1
+  - labels:
+      app: mockserver
+      version: v2
+    name: v2
+  - labels:
+      app: mockserver
+      version: v3
+    name: v3
+  - labels:
+      app: mockserver
+      version: v4
+    name: v4
+  - labels:
+      app: mockserver
+      version: v5
+    name: v5
+  - labels:
+      app: mockserver
+      version: v6
+    name: v6
+  - labels:
+      app: mockserver
+      version: v7
+    name: v7
+  - labels:
+      app: mockserver
+      version: v8
+    name: v8
+  - labels:
+      app: mockserver
+      version: v9
+    name: v9
+  - labels:
+      app: mockserver
+      version: v10
+    name: v10
+  trafficPolicy:
+    outlierDetection:
+      #splitExternalLocalOriginErrors: true  # 可选，是否区分本地源错误和外部错误，默认为false
+      #consecutiveLocalOriginFailures: 1     # 可选，触发熔断的连续本地源错误次数阈值，需要splitExternalLocalOriginErrors为true
+      #consecutiveGatewayErrors: 1           # 可选，触发熔断的连续网关错误次数阈值，http 502|503|504，大于consecutive5xxErrors时不起作用，默认不开启
+      consecutive5xxErrors: 5               # 可选，触发熔断的连续5xx错误（服务器错误）次数阈值，包含consecutiveGatewayErrors，默认为5，0表示不开启
+      interval: 5s                          # 可选，解除熔断的分析间隔，默认10s，必须>=1ms
+      baseEjectionTime: 20s                  # 可选，最小熔断时间，默认30s，必须>=1ms
+      maxEjectionPercent: 50               # 可选，最大熔断百分比，默认10%
+      #minHealthPercent: 0     

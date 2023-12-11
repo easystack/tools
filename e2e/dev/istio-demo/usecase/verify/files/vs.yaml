@@ -1,0 +1,28 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mockserver
+spec:
+  gateways:
+  - mesh
+  hosts:
+  - mockserver
+  http:
+  - route:
+    - destination:
+        host: mockserver
+        port:
+          number: 80
+        subset: v1
+    fault:
+      delay:
+        fixedDelay: 2s      # 必选，要求>=1ms
+        percentage:         # 指定需要延迟的百分比，默认0.0，可选
+          value: 100.0
+    mirror:
+      host: mockserver        # 必选
+      subset: v2         # 可选
+      port:              # 可选
+        number: 80
+    mirrorPercentage:    # 可选，默认100.0
+      value: 100.0

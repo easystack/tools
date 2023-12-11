@@ -1,0 +1,20 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mockserver
+spec:
+  gateways:
+  - mesh
+  hosts:
+  - mockserver
+  http:
+  - route:
+    - destination:
+        host: mockserver
+        port:
+          number: 80
+        subset: v1
+    retries:
+      attempts: 3
+      #perTryTimeout: 100ms
+      retryOn: 5xx

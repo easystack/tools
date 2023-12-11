@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-consumer
+  labels:
+    app: springboot-consumer
+spec:
+  selector:
+    matchLabels:
+      app: springboot-consumer
+  template:
+    metadata:
+      annotations:
+        "sidecar.istio.io/logLevel": debug
+      labels:
+        app: springboot-consumer
+        version: v1
+    spec:
+      nodeSelector:
+        node.es.io/role: worker
+      containers:
+        - name: consumer
+          image: hub.easystack.cn/captain/springboot-consumer-test:v0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9070
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: springboot-consumer
+  name: springboot-consumer
+spec:
+  ports:
+    - name: http
+      port: 9070
+      protocol: TCP
+      targetPort: 9070
+  selector:
+    app: springboot-consumer

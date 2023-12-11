@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dubbo-sample-consumer
+  labels:
+    app: dubbo-sample-consumer
+spec:
+  selector:
+    matchLabels:
+      app: dubbo-sample-consumer
+  template:
+    metadata:
+      labels:
+        app: dubbo-sample-consumer
+        version: v1
+    spec:
+      nodeSelector:
+        node.es.io/role: worker
+      containers:
+        - name: consumer
+          image: hub.easystack.cn/captain/dubbo-consumer-test:v0.0.1
+          imagePullPolicy: Always
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: dubbo-sample-consumer
+  name: dubbo-sample-consumer
+spec:
+  ports:
+    - name: http
+      port: 8383
+      protocol: TCP
+      targetPort: 8383
+  selector:
+    app: dubbo-sample-consumer

@@ -1,0 +1,24 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mockserver
+spec:
+  gateways:
+  - mesh
+  hosts:
+  - mockserver
+  http:
+  - route:
+    - destination:
+        host: mockserver
+        port:
+          number: 80
+    fault:
+      delay:
+        fixedDelay: 2s      # 必选，要求>=1ms
+        percentage:         # 指定需要延迟的百分比，默认0.0，可选
+          value: 100.0
+      abort:
+        httpStatus: 503           # 必选，中断请求的http返回码
+        percentage:               # 指定需要中断的百分比，默认0.0，可选
+          value: 100.0

@@ -1,0 +1,16 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: nginx
+spec:
+  gateways:
+  - mesh
+  hosts:
+  - nginx
+  http:
+  - route:
+    - destination:
+        host: nginx
+        port:
+          number: 80
+    timeout: 1ms

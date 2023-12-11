@@ -4,4 +4,4 @@ connectionDuration: 4 #
 
 qps: 10
 fortioImage: fortio/fortio:latest
-httpbinRedployMinutes: 1
+httpbinRedployMinutes: 5

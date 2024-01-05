@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dubbo-provider-test-nacos
+  group: dubbo-nacos
+  labels:
+    app: dubbo-provider-test-nacos
+spec:
+  selector:
+    matchLabels:
+      app: dubbo-provider-test-nacos
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dubbo-provider-test-nacos
+        version: v1
+    spec:
+      containers:
+        - name: provider
+          image: hub.ecns.io/library/dubbo-provider-test-nacos:v0.0.1
+          imagePullPolicy: Always
+          env:
+            - name: DUBBO_REGISTRY_ADDRESS
+              value: "nacos://nacos:8848?namespace=101a0730-5094-4e20-bb44-fb7cf9b05f6e"
+          ports:
+            - containerPort: 20880

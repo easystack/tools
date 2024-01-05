@@ -1,0 +1,449 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecnf-busybox
+  group: ecnf-busybox
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: ubuntu-check-center
+  template:
+    metadata:
+      labels:
+        application: ubuntu-check-center
+    spec:
+      containers:
+      - command:
+        - /tmp/startup.sh
+        image: hub.ecns.io/library/ubuntu-toolbox:latest
+        securityContext:
+          privileged: true
+        name: ubuntu-toolbox
+        volumeMounts:
+        - mountPath: /host-etc/
+          name: hosts-data
+        - mountPath: /tmp/startup.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: startup.sh
+        - mountPath: /tmp/check_gated_launch_to_v1.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_gated_launch_to_v1.sh
+        - mountPath: /tmp/gated_launch_to_v1_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: gated_launch_to_v1_vs.sh
+        - mountPath: /tmp/gated_launch_to_v1_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: gated_launch_to_v1_dr.sh
+        - mountPath: /tmp/fault_mockserver_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: fault_mockserver_vs.sh
+        - mountPath: /tmp/check_fault_injection.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_fault_injection.sh
+        - mountPath: /tmp/canary_weight_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: canary_weight_dr.sh
+        - mountPath: /tmp/canary_weight_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: canary_weight_vs.sh
+        - mountPath: /tmp/check_canary_weight_canary.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_canary_weight_canary.sh
+        - mountPath: /tmp/check_canary_weight_gateway.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_canary_weight_gateway.sh
+        - mountPath: /tmp/connection_pool_http_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: connection_pool_http_dr.sh
+        - mountPath: /tmp/connection_pool_http_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: connection_pool_http_vs.sh
+        - mountPath: /tmp/check_connection_pool_http.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_connection_pool_http.sh
+        - mountPath: /tmp/connection_pool_tcp_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: connection_pool_tcp_dr.sh
+        - mountPath: /tmp/connection_pool_tcp_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: connection_pool_tcp_vs.sh
+        - mountPath: /tmp/check_connection_pool_tcp.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_connection_pool_tcp.sh
+        - mountPath: /tmp/check_dubbo_demo.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_dubbo_demo.sh
+        - mountPath: /tmp/lb_consistent_hash_cookie_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_cookie_dr.sh
+        - mountPath: /tmp/lb_consistent_hash_cookie_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_cookie_vs.sh
+        - mountPath: /tmp/check_lb_consistent_hash_cookie.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_consistent_hash_cookie.sh
+        - mountPath: /tmp/lb_consistent_hash_header_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_header_dr.sh
+        - mountPath: /tmp/lb_consistent_hash_header_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_header_vs.sh
+        - mountPath: /tmp/check_lb_consistent_hash_header.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_consistent_hash_header.sh
+        - mountPath: /tmp/lb_consistent_hash_param_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_param_vs.sh
+        - mountPath: /tmp/check_lb_consistent_hash_param.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_consistent_hash_param.sh
+        - mountPath: /tmp/lb_consistent_hash_param_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_param_dr.sh
+        - mountPath: /tmp/lb_consistent_header_subset_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_header_subset_dr.sh
+        - mountPath: /tmp/lb_consistent_header_subset_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_header_subset_vs.sh
+        - mountPath: /tmp/check_lb_consistent_header_subset.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_consistent_header_subset.sh
+        - mountPath: /tmp/lb_consistent_header_port_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_header_port_dr.sh
+        - mountPath: /tmp/lb_consistent_header_port_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_header_port_vs.sh
+        - mountPath: /tmp/check_lb_consistent_header_port.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_consistent_header_port.sh
+        - mountPath: /tmp/lb_simple_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_simple_dr.sh
+        - mountPath: /tmp/lb_simple_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_simple_vs.sh
+        - mountPath: /tmp/check_lb_simple.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_simple.sh
+        - mountPath: /tmp/outlier_detection_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: outlier_detection_dr.sh
+        - mountPath: /tmp/outlier_detection_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: outlier_detection_vs.sh
+        - mountPath: /tmp/check_outlier_detection.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_outlier_detection.sh
+        - mountPath: /tmp/ratelimit_local_ef.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_local_ef.sh
+        - mountPath: /tmp/ratelimit_local_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_local_dr.sh
+        - mountPath: /tmp/ratelimit_local_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_local_vs.sh
+        - mountPath: /tmp/check_ratelimit_local.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_ratelimit_local.sh
+        - mountPath: /tmp/retry_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: retry_dr.sh
+        - mountPath: /tmp/retry_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: retry_vs.sh
+        - mountPath: /tmp/check_retry.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_retry.sh
+        - mountPath: /tmp/rewrite_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: rewrite_dr.sh
+        - mountPath: /tmp/rewrite_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: rewrite_vs.sh
+        - mountPath: /tmp/check_rewrite.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_rewrite.sh
+        - mountPath: /tmp/check_timeout.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_timeout.sh
+        - mountPath: /tmp/timeout_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: timeout_dr.sh
+        - mountPath: /tmp/timeout_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: timeout_vs.sh
+        - mountPath: /tmp/traffic_mirror_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: traffic_mirror_dr.sh
+        - mountPath: /tmp/traffic_mirror_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: traffic_mirror_vs.sh
+        - mountPath: /tmp/check_traffic_mirror.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_traffic_mirror.sh
+        - mountPath: /tmp/ratelimit_global_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_global_dr.sh
+        - mountPath: /tmp/ratelimit_global_gw.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_global_gw.sh
+        - mountPath: /tmp/ratelimit_global_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_global_vs.sh
+        - mountPath: /tmp/ratelimit_global_filter_ratelimit_envoyfilter.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_global_filter_ratelimit_envoyfilter.sh
+        - mountPath: /tmp/ratelimit_global_filter_ratelimit_svc_envoyfilter.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: ratelimit_global_filter_ratelimit_svc_envoyfilter.sh
+        - mountPath: /tmp/lb_circuit_breaking_health_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_circuit_breaking_health_dr.sh
+        - mountPath: /tmp/lb_circuit_breaking_health_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_circuit_breaking_health_vs.sh
+        - mountPath: /tmp/check_lb_circuit_breaking_health.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_circuit_breaking_health.sh
+        - mountPath: /tmp/lb_consistent_hash_sourceip_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_sourceip_dr.sh
+        - mountPath: /tmp/lb_consistent_hash_sourceip_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_consistent_hash_sourceip_vs.sh
+        - mountPath: /tmp/check_lb_consistent_hash_sourceip.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_consistent_hash_sourceip.sh
+        - mountPath: /tmp/lb_initiative_health_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_initiative_health_dr.sh
+        - mountPath: /tmp/lb_initiative_health_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: lb_initiative_health_vs.sh
+        - mountPath: /tmp/check_lb_initiative_health.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_lb_initiative_health.sh
+        - mountPath: /tmp/route_http_header_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_header_dr.sh
+        - mountPath: /tmp/route_http_header_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_header_vs.sh
+        - mountPath: /tmp/check_route_http_header.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_route_http_header.sh
+        - mountPath: /tmp/route_http_method_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_method_dr.sh
+        - mountPath: /tmp/route_http_method_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_method_vs.sh
+        - mountPath: /tmp/check_route_http_method.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_route_http_method.sh
+        - mountPath: /tmp/route_http_param_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_param_dr.sh
+        - mountPath: /tmp/route_http_param_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_param_vs.sh
+        - mountPath: /tmp/check_route_http_param.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_route_http_param.sh
+        - mountPath: /tmp/route_http_uri_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_uri_dr.sh
+        - mountPath: /tmp/route_http_uri_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_uri_vs.sh
+        - mountPath: /tmp/check_route_http_uri.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_route_http_uri.sh
+        - mountPath: /tmp/route_http_all_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_all_dr.sh
+        - mountPath: /tmp/route_http_all_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: route_http_all_vs.sh
+        - mountPath: /tmp/check_route_http_all.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_route_http_all.sh
+        - mountPath: /tmp/rewrite_header_dr.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: rewrite_header_dr.sh
+        - mountPath: /tmp/rewrite_header_vs.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: rewrite_header_vs.sh
+        - mountPath: /tmp/check_rewrite_header.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_rewrite_header.sh
+        - mountPath: /tmp/dubbo_zookeeper_registryhub.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: dubbo_zookeeper_registryhub.sh
+        - mountPath: /tmp/check_dubbo_zookeeper.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_dubbo_zookeeper.sh
+        - mountPath: /tmp/dubbo_nacos_registryhub.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: dubbo_nacos_registryhub.sh
+        - mountPath: /tmp/check_dubbo_nacos.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_dubbo_nacos.sh
+        - mountPath: /tmp/check_springboot_eureka_registration.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_springboot_eureka_registration.sh
+        - mountPath: /tmp/springboot_eureka_serviceentry_registryhub.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: springboot_eureka_serviceentry_registryhub.sh
+        - mountPath: /tmp/check_springboot_eureka_serviceentry.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_springboot_eureka_serviceentry.sh
+        - mountPath: /tmp/springboot_consul_registryhub.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: springboot_consul_registryhub.sh
+        - mountPath: /tmp/check_springboot_consul.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: check_springboot_consul.sh
+        - mountPath: /tmp/main.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: main.sh
+        - mountPath: /usr/local/bin/
+          name: host-cli-tools
+        - mountPath: /host-tmp/
+          name: host-tmp
+        - mountPath: /root/.ssh
+          name: ssh-key
+          readOnly: true
+        - mountPath: /etc/kubernetes
+          name: hosts-kubernetes
+          readOnly: true
+        - mountPath: /tmp/host_cronjob.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: host_cronjob.sh
+      restartPolicy: Always
+      volumes:
+      - configMap:
+          defaultMode: 365
+          name: ecnf-config-cm
+        name: ecnf-config-cm
+      - hostPath:
+          path: /usr/local/bin/
+          type: ""
+        name: host-cli-tools
+      - hostPath:
+          path: /root/.ssh
+          type: ""
+        name: ssh-key
+      - hostPath:
+          path: /tmp/
+          type: ""
+        name: host-tmp
+      - hostPath:
+          path: /etc/
+          type: ""
+        name: hosts-data
+      - hostPath:
+          path: /etc/kubernetes
+          type: ""
+        name: hosts-kubernetes

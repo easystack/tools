@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-provider
+  labels:
+    app: springboot-provider
+    group: spring-demo
+spec:
+  selector:
+    matchLabels:
+      app: springboot-provider
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: springboot-provider
+        version: v1
+    spec:
+      nodeSelector:
+        node.es.io/role: worker
+      containers:
+        - name: provider
+          image: hub.easystack.cn/captain/springboot-provider-test:v0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000

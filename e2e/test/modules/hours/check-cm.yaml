@@ -1,0 +1,41 @@
+apiVersion: v1
+data:
+  startup.sh: |+
+    #!/bin/sh
+
+    # Update /etc/hosts first to allow following command work.
+    mkdir -p /etc/hosts.d
+    # \cp overwrite if the file existed
+    \cp -f /etc/hosts /etc/hosts.d/original_host.conf
+
+    /tmp/host_cronjob.sh
+
+    env_file=/tmp/__busybox_env
+    if [ -f $env_file ]; then
+      rm -f $env_file
+    fi
+    for e in `env`; do
+      echo "export $e" >> $env_file
+    done
+    sleep 120s
+    sleep 60s
+    while true; do echo `kubectl get nodes | grep -v NAME`; sleep 100;done
+
+  host_cronjob.sh: |
+    #!/bin/sh
+
+    # \cp overwrite if the file existed
+    \cp -f /host-etc/hosts /etc/hosts.d/node_hosts.conf
+    # add original hosts file content and node latest hosts file content to tmp file
+    cat /etc/hosts.d/*.conf > /tmp/hosts
+    # compare the content, if different then update the /etc/hosts file
+    if ( diff /etc/hosts /tmp/hosts ) ; then
+       echo 'no need to update the hosts file'
+    else
+       cat /tmp/hosts > /etc/hosts
+       echo 'update hosts file done'
+    fi
+
+kind: ConfigMap
+metadata:
+  name: ecnf-config-cm

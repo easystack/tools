@@ -1,0 +1,13 @@
+apiVersion: ecns.easystack.cn/v1alpha1
+kind: RegistryHub
+metadata:
+  labels:
+    app.kubernetes.io/name: registryhub
+  name: registryhub-sample
+spec:
+  # serviceentry导出到哪个空间
+  generate_to: default
+  # 注册中心类型
+  type: zookeeper
+  # 注册中心地址
+  address: "zookeeper:2181"

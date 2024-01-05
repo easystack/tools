@@ -1,0 +1,62 @@
+steps:
+- name: Starting measurement for springboot-eureka-registration application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = springboot-eureka-registration
+      operationTimeout: "120s"
+
+- name: Create eureka-cm Config
+  phases:
+  - namespaceRange:
+      min: 34
+      max: 34
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: eureka-cm
+      objectTemplatePath: modules/springboot-eureka-registration/eureka-cm.yaml
+
+- name: Create eureka service and deploy
+  phases:
+  - namespaceRange:
+      min: 34
+      max: 34
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: eureka
+      objectTemplatePath: modules/springboot-eureka-registration/eureka-svc.yaml
+    - basename: eureka
+      objectTemplatePath: modules/springboot-eureka-registration/eureka-sfs.yaml
+
+- name: Create springboot-eureka service and deploy
+  phases:
+  - namespaceRange:
+      min: 34
+      max: 34
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: springboot-consumer-test-eureka
+      objectTemplatePath: modules/springboot-eureka-registration/springboot-consumer-eureka-svc.yaml
+    - basename: springboot-consumer-test-eureka
+      objectTemplatePath: modules/springboot-eureka-registration/springboot-consumer-eureka-deploy.yaml
+    - basename: springboot-provider-test-eureka
+      objectTemplatePath: modules/springboot-eureka-registration/springboot-provider-eureka-svc.yaml
+    - basename: springboot-provider-test-eureka
+      objectTemplatePath: modules/springboot-eureka-registration/springboot-provider-eureka-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

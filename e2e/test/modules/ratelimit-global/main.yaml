@@ -1,0 +1,66 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = ratelimit-global
+      operationTimeout: "120s"
+
+- name: Create prism-conf Config
+  phases:
+  - namespaceRange:
+      min: 13
+      max: 13
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: prism-conf
+      objectTemplatePath: modules/ratelimit-global/prism-conf.yaml
+
+- name: Create ratelimit-global service and deploy
+  phases:
+  - namespaceRange:
+      min: 13
+      max: 13
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: redis
+      objectTemplatePath: modules/ratelimit-global/ratelimit-redis-svc.yaml
+    - basename: redis-deploy
+      objectTemplatePath: modules/ratelimit-global/ratelimit-redis-deploy.yaml
+    - basename: ratelimit
+      objectTemplatePath: modules/ratelimit-global/ratelimit-svc.yaml
+    - basename: ratelimit-config
+      objectTemplatePath: modules/ratelimit-global/ratelimit-cm.yaml
+    - basename: ratelimit-deploy
+      objectTemplatePath: modules/ratelimit-global/ratelimit-deploy.yaml
+
+- name: Create ratelimit-global service and deploy
+  phases:
+  - namespaceRange:
+      min: 13
+      max: 13
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: mockserver
+      objectTemplatePath: modules/ratelimit-global/mockserver.yaml
+    - basename: mockserver-v1-deploy
+      objectTemplatePath: modules/ratelimit-global/mockserver-v1-deploy.yaml
+    - basename: mockserver-v2-deploy
+      objectTemplatePath: modules/ratelimit-global/mockserver-v2-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

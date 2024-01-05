@@ -1,0 +1,50 @@
+steps:
+- name: Starting measurement for check box application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = ecnf-busybox-1
+      operationTimeout: "120s"
+
+- name: Create check-cm Config
+  phases:
+  - namespaceRange:
+      min: 29
+      max: 29
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: ecnf-config-cm
+      objectTemplatePath: modules/check-center-no-istio-injection/check-cm.yaml
+
+- name: Create check box deploy
+  phases:
+  - namespaceRange:
+      min: 29
+      max: 29
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: check-box-no-istio-injection
+      objectTemplatePath: modules/check-center-no-istio-injection/check-box.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+
+- name: Sleep
+  measurements:
+  - Identifier: WaitAfterExec
+    Method: Sleep
+    Params:
+      duration: "60000s"

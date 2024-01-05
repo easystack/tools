@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  labels:
+    app: zookeeper
+    group: dubbo-demo
+spec:
+  selector:
+    matchLabels:
+      app: zookeeper
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: zookeeper
+    spec:
+      containers:
+        - name: zookeeper
+          image: hub.ecns.io/library/zookeeper:3.4
+          ports:
+            - containerPort: 2181

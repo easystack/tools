@@ -1,0 +1,12 @@
+apiVersion: ecns.easystack.cn/v1alpha1
+kind: RegistryHub
+metadata:
+  labels:
+    app.kubernetes.io/name: registryhub
+  name: registryhub-sample
+spec:
+  generate_to: istiotest-35
+  # Type of the registry: zookeeper or nacos or etcd
+  type: eureka
+  # Registry address in the form of ip:port or dns:port
+  address: "http://eureka.istiotest-35:8761/eureka"

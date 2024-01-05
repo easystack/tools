@@ -1,0 +1,73 @@
+apiVersion: v1
+data:
+  mock-v1.yaml: |
+    openapi: 3.0.3
+    info:
+      title: MockServer v1
+      description: MockServer v1
+      version: 1.0.0
+    paths:
+      '/':
+        get:
+          parameters:
+            - name: rewritetest
+              in: header
+              required: true
+          responses:
+            '200':
+              content:
+                'text/plain':
+                  schema:
+                    type: string
+                    example: v1-get
+      '/api/test':
+        get:
+          parameters:
+            - name: istio
+              in: header
+              required: true
+          responses:
+            '200':
+              content:
+                'text/plain':
+                  schema:
+                    type: string
+                    example: v1-get-api-test
+
+  mock-v2.yaml: |
+    openapi: 3.0.3
+    info:
+      title: MockServer v2
+      description: MockServer v2
+      version: 2.0.0
+    paths:
+      '/':
+        get:
+          parameters:
+            - name: istio
+              in: header
+              required: true
+          responses:
+            '200':
+              content:
+                'text/plain':
+                  schema:
+                    type: string
+                    example: v2-get
+      '/api/test':
+        get:
+          parameters:
+            - name: rewirtename
+              in: header
+              required: true
+          responses:
+            '200':
+              content:
+                'text/plain':
+                  schema:
+                    type: string
+                    example: v2-get-api-test
+
+kind: ConfigMap
+metadata:
+  name: prism-conf

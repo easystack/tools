@@ -1,0 +1,309 @@
+name: ecnf-load
+
+namespace:
+  number: 40
+  prefix: istiotest
+  EnableExistingNamespaces: true
+  DeleteStaleNamespaces: false
+  DeleteAutomanagedNamespaces: false
+  automanagednamespaces: 40
+
+tuningSets:
+- name: Sequence
+  parallelismLimitedLoad:
+    parallelismLimit: 1
+
+- name: default
+  globalQPSLoad:
+    qps: 1
+    burst: 1
+
+steps:
+
+#- module:
+#    path: modules/canary-weight/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 1
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/connection-pool-http/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 3
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/connection-pool-tcp/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 4
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/fault-injection/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 6
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/gated-launch-to-v1/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 7
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-consistent-hash-cookie/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 8
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-consistent-hash-header/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 9
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-consistent-hash-param/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 10
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-simple/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 11
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/outlier-detection/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 12
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/ratelimit-global/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 13
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/ratelimit-local/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 14
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/retry/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 15
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/rewrite/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 16
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/timeout/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 18
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/traffic-mirror/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 19
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-circuit-breaking-health/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 20
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-consistent-hash-sourceip/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 21
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-initiative-health/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 22
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/route-http-header/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 23
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/route-http-method/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 24
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/router-http-param/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 25
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/route-http-uri/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 26
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/route-http-all/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 27
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/rewrite-header/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 28
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-consistent-header-subset/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 30
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/lb-consistent-header-port/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 31
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/dubbo-zookeeper/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 32
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/dubbo-nacos/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 33
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/springboot-eureka-registration/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 34
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/springboot-eureka-serviceentry/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 35
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/springboot-consul/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 36
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/check-center/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 2
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+#
+#- module:
+#    path: modules/check-center-no-istio-injection/main.yaml
+#    params:
+#      actionName: "create"
+#      namespaces: 29
+#      tuningSet: Sequence
+#      operationTimeout: 15m
+
+- module:
+    path: modules/defaultpool-pod-to-vm-connectivity/main.yaml
+    params:
+      actionName: "create"
+      namespaces: 38
+      tuningSet: Sequence
+      operationTimeout: 15m
+
+- module:
+    path: modules/hours/main.yaml
+    params:
+      actionName: "create"
+      namespaces: 37
+      tuningSet: Sequence
+      operationTimeout: 15m

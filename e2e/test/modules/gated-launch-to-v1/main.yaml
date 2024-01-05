@@ -1,0 +1,43 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = gated-launch-v1
+      operationTimeout: "120s"
+
+- name: Create helloword service and deploy
+  phases:
+  - namespaceRange:
+      min: 7
+      max: 7
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: helloword-svc
+      objectTemplatePath: modules/gated-launch-to-v1/helloword-svc.yaml
+    - basename: helloword-v1-deploy
+      objectTemplatePath: modules/gated-launch-to-v1/helloword-v1-deploy.yaml
+    - basename: helloword-v2-deploy
+      objectTemplatePath: modules/gated-launch-to-v1/helloword-v2-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather
+
+#- name: Sleep
+#  measurements:
+#  - Identifier: WaitAfterExec
+#    Method: Sleep
+#    Params:
+#      duration: "6000s"

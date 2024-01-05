@@ -1,0 +1,53 @@
+steps:
+- name: Starting measurement for springboot-consul application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = springboot-consul
+      operationTimeout: "120s"
+
+- name: Create consul service and deploy
+  phases:
+  - namespaceRange:
+      min: 36
+      max: 36
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: consul-ui
+      objectTemplatePath: modules/springboot-consul/consul-ui-svc.yaml
+    - basename: consul
+      objectTemplatePath: modules/springboot-consul/consul-svc.yaml
+    - basename: consul
+      objectTemplatePath: modules/springboot-consul/consul-sfs.yaml
+
+- name: Create springboot-consul service and deploy
+  phases:
+  - namespaceRange:
+      min: 36
+      max: 36
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: springboot-consumer-consul
+      objectTemplatePath: modules/springboot-consul/springboot-consumer-consul-svc.yaml
+    - basename: springboot-consumer
+      objectTemplatePath: modules/springboot-consul/springboot-consumer-deploy.yaml
+    - basename: springboot-provider-consul
+      objectTemplatePath: modules/springboot-consul/springboot-provider-consul-svc.yaml
+    - basename: springboot-provider
+      objectTemplatePath: modules/springboot-consul/springboot-provider-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

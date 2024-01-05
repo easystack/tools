@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dubbo-sample-provider
+  labels:
+    app: dubbo-sample-provider
+    group: dubbo-demo
+spec:
+  selector:
+    matchLabels:
+      app: dubbo-sample-provider
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: dubbo-sample-provider
+        version: v1
+    spec:
+      containers:
+        - name: provider
+          image: hub.ecns.io/library/dubbo-provider-test:v0.0.1
+          imagePullPolicy: Always
+          env:
+            - name: AERAKI_META_APP_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 20880

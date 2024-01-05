@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-consumer-test-eureka-direct
+  group: springboot-eureka-serviceentry
+  labels:
+    app: springboot-consumer-test-eureka-direct
+spec:
+  selector:
+    matchLabels:
+      app: springboot-consumer-test-eureka-direct
+  template:
+    metadata:
+      annotations:
+        "sidecar.istio.io/logLevel": debug
+      labels:
+        app: springboot-consumer-test-eureka-direct
+        version: v1
+    spec:
+      containers:
+        - name: consumer
+          image: hub.ecns.io/library/springboot-consumer-test-eureka-direct:v0.0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9070
+          env:
+          - name: SPRING_PROVIDER_ADDRESS
+            value: "http://eureka-provider.istiotest-35:9000"

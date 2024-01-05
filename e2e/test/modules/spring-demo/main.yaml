@@ -1,0 +1,56 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    - Identifier: WaitForRunningStatefulSets
+      Params:
+        apiVersion: apps/v1
+        kind: StatefulSet
+    Params:
+      action: start
+      labelSelector: group = spring-demo
+      operationTimeout: "120s"
+
+- name: Create eureka service and deploy
+  phases:
+  - namespaceRange:
+      min: 15
+      max: 15
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: eureka
+      objectTemplatePath: modules/spring-demo/eureka.yaml
+    - basename: eureka-svc
+      objectTemplatePath: modules/spring-demo/eureka-svc.yaml
+    - basename: eureka-cm
+      objectTemplatePath: modules/spring-demo/eureka-cm.yaml
+
+- name: Create spring-demo service and deploy
+  phases:
+  - namespaceRange:
+      min: 15
+      max: 15
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: spring-demo-svc
+      objectTemplatePath: modules/spring-demo/consumer-svc.yaml
+    - basename: spring-demo-provider
+      objectTemplatePath: modules/spring-demo/provider.yaml
+    - basename: spring-demo-consumer
+      objectTemplatePath: modules/spring-demo/consumer.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    - Identifier: WaitForRunningStatefulSets
+    Params:
+      action: gather

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecnf-hours
+  group: ecnf-hours
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: hours
+  template:
+    metadata:
+      labels:
+        application: hours
+    spec:
+      containers:
+      - command:
+        - /tmp/startup.sh
+        image: hub.ecns.io/library/vpc-cni-test-image-x86:latest
+        securityContext:
+          privileged: true
+        name: hours
+        volumeMounts:
+        - mountPath: /host-etc/
+          name: hosts-data
+        - mountPath: /tmp/startup.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: startup.sh
+        - mountPath: /usr/local/bin/
+          name: host-cli-tools
+        - mountPath: /host-tmp/
+          name: host-tmp
+        - mountPath: /root/.ssh
+          name: ssh-key
+          readOnly: true
+        - mountPath: /etc/kubernetes
+          name: hosts-kubernetes
+          readOnly: true
+        - mountPath: /tmp/host_cronjob.sh
+          name: ecnf-config-cm
+          readOnly: true
+          subPath: host_cronjob.sh
+      restartPolicy: Always
+      volumes:
+      - configMap:
+          defaultMode: 365
+          name: ecnf-config-cm
+        name: ecnf-config-cm
+      - hostPath:
+          path: /usr/local/bin/
+          type: ""
+        name: host-cli-tools
+      - hostPath:
+          path: /root/.ssh
+          type: ""
+        name: ssh-key
+      - hostPath:
+          path: /tmp/
+          type: ""
+        name: host-tmp
+      - hostPath:
+          path: /etc/
+          type: ""
+        name: hosts-data
+      - hostPath:
+          path: /etc/kubernetes
+          type: ""
+        name: hosts-kubernetes

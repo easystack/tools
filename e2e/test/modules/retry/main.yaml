@@ -1,0 +1,47 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = retry
+      operationTimeout: "120s"
+
+- name: Create prism-conf Config
+  phases:
+  - namespaceRange:
+      min: 15
+      max: 15
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: prism-conf
+      objectTemplatePath: modules/retry/prism-conf.yaml
+
+- name: Create retry service and deploy
+  phases:
+  - namespaceRange:
+      min: 15
+      max: 15
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: mockserver
+      objectTemplatePath: modules/retry/mockserver.yaml
+    - basename: mockserver-v1-deploy
+      objectTemplatePath: modules/retry/mockserver-v1-deploy.yaml
+    - basename: mockserver-v2-deploy
+      objectTemplatePath: modules/retry/mockserver-v2-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

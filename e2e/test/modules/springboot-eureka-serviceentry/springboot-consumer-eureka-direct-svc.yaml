@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: springboot-consumer-test-eureka-direct
+  name: springboot-consumer-test-eureka-direct
+spec:
+  clusterIP: 10.222.19.50
+  ports:
+    - name: http
+      port: 9070
+      protocol: TCP
+      targetPort: 9070
+  selector:
+    app: springboot-consumer-test-eureka-direct

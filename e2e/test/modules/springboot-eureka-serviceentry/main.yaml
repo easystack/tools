@@ -1,0 +1,63 @@
+steps:
+- name: Starting measurement for springboot-eureka-serviceentry application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = springboot-eureka-serviceentry
+      operationTimeout: "120s"
+
+- name: Create eureka-cm Config
+  phases:
+  - namespaceRange:
+      min: 35
+      max: 35
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: eureka-cm
+      objectTemplatePath: modules/springboot-eureka-serviceentry/eureka-cm.yaml
+
+- name: Create eureka service and deploy
+  phases:
+  - namespaceRange:
+      min: 35
+      max: 35
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: eureka
+      objectTemplatePath: modules/springboot-eureka-serviceentry/eureka-svc.yaml
+    - basename: eureka
+      objectTemplatePath: modules/springboot-eureka-serviceentry/eureka-sfs.yaml
+
+- name: Create springboot-eureka service and deploy
+  phases:
+  - namespaceRange:
+      min: 35
+      max: 35
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: springboot-provider-test-eureka
+      objectTemplatePath: modules/springboot-eureka-serviceentry/springboot-provider-eureka-svc.yaml
+    - basename: springboot-provider-test-eureka
+      objectTemplatePath: modules/springboot-eureka-serviceentry/springboot-provider-eureka-deploy.yaml
+    - basename: springboot-consumer-test-eureka-direct
+      objectTemplatePath: modules/springboot-eureka-serviceentry/springboot-consumer-eureka-direct-svc.yaml
+    - basename: springboot-consumer-test-eureka-direct
+      objectTemplatePath: modules/springboot-eureka-serviceentry/springboot-consumer-eureka-direct-deploy.yaml
+
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

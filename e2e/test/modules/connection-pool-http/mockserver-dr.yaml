@@ -1,0 +1,19 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mockserver
+spec:
+  host: mockserver
+  subsets:
+  - labels:
+      app: mockserver
+      version: v1
+    name: v1
+  - labels:
+      app: mockserver
+      version: v2
+    name: v2
+  trafficPolicy:
+    connectionPool:
+      http:
+        http2MaxRequests: 1        # 可选，HTTP1.1/HTTP2最大活跃请求，默认1024

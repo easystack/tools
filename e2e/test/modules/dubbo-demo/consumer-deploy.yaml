@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dubbo-sample-consumer
+  labels:
+    app: dubbo-sample-consumer
+    group: dubbo-demo
+spec:
+  selector:
+    matchLabels:
+      app: dubbo-sample-consumer
+  template:
+    metadata:
+      labels:
+        app: dubbo-sample-consumer
+        version: v1
+    spec:
+      containers:
+        - name: consumer
+          image: hub.ecns.io/library/dubbo-consumer-test:v0.0.1
+          imagePullPolicy: Always

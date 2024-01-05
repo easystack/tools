@@ -1,0 +1,10 @@
+apiVersion: ecns.easystack.cn/v1alpha1
+kind: RegistryHub
+metadata:
+  name: registryhub-sample
+spec:
+  generate_to: istiotest-36
+  # Type of the registry: zookeeper or nacos or etcd
+  type: consul
+  # Registry address in the form of ip:port or dns:port
+  address: "http://consul.istiotest-36:8500"

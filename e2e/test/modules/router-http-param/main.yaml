@@ -1,0 +1,47 @@
+steps:
+- name: Starting measurement for router-http-param application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = router-http-param
+      operationTimeout: "120s"
+
+- name: Create prism-conf Config
+  phases:
+  - namespaceRange:
+      min: 25
+      max: 25
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: prism-conf
+      objectTemplatePath: modules/router-http-param/prism-conf.yaml
+
+- name: Create router-http-param service and deploy
+  phases:
+  - namespaceRange:
+      min: 25
+      max: 25
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: mockserver
+      objectTemplatePath: modules/router-http-param/mockserver-svc.yaml
+    - basename: mockserver-v1-deploy
+      objectTemplatePath: modules/router-http-param/mockserver-v1-deploy.yaml
+    - basename: mockserver-v2-deploy
+      objectTemplatePath: modules/router-http-param/mockserver-v2-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

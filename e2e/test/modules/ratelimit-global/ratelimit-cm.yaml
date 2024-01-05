@@ -1,0 +1,17 @@
+apiVersion: v1
+data:
+  config.yaml: |
+    domain: mockserver-ratelimit
+    descriptors:
+      - key: PATH
+        value: "/mockserver"
+        rate_limit:
+          unit: minute
+          requests_per_unit: 10
+      - key: PATH
+        rate_limit:
+          unit: minute
+          requests_per_unit: 1000000
+kind: ConfigMap
+metadata:
+  name: ratelimit-config

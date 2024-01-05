@@ -1,0 +1,51 @@
+steps:
+- name: Starting measurement for lb-consistent-header-port application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = lb-consistent-header-port
+      operationTimeout: "120s"
+
+- name: Create prism-conf Config
+  phases:
+  - namespaceRange:
+      min: 31
+      max: 31
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: prism-conf
+      objectTemplatePath: modules/lb-consistent-header-port/prism-conf.yaml
+
+- name: Create lb-consistent-header-port service and deploy
+  phases:
+  - namespaceRange:
+      min: 31
+      max: 31
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: mockserver
+      objectTemplatePath: modules/lb-consistent-header-port/mockserver-svc.yaml
+    - basename: mockserver-v1-deploy
+      objectTemplatePath: modules/lb-consistent-header-port/mockserver-v1-deploy.yaml
+    - basename: mockserver-v2-deploy
+      objectTemplatePath: modules/lb-consistent-header-port/mockserver-v2-deploy.yaml
+    - basename: mockserver-v3-deploy
+      objectTemplatePath: modules/lb-consistent-header-port/mockserver-v3-deploy.yaml
+    - basename: mockserver-v4-deploy
+      objectTemplatePath: modules/lb-consistent-header-port/mockserver-v4-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

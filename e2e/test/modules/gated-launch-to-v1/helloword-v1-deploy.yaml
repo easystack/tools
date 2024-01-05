@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloword-v1
+  labels:
+    app: helloword
+    version: v1
+    group: gated-launch-v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helloword
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: helloword
+        version: v1
+    spec:
+      containers:
+      - name: helloworld
+        image: hub.ecns.io/library/examples-helloworld-v1
+        resources:
+          requests:
+            cpu: "100m"
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000

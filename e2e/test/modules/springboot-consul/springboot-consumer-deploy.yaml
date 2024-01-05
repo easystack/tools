@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-consumer
+  group: springboot-consul
+  labels:
+    app: springboot-consumer
+spec:
+  selector:
+    matchLabels:
+      app: springboot-consumer
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: springboot-consumer
+        version: v1
+    spec:
+      containers:
+        - name: consumer
+          image: hub.ecns.io/library/springboot-consumer-consul:v0.0.1
+          imagePullPolicy: Always
+          env:
+          - name: PROVIDER_SERVICE
+            value: "consul-provider.istiotest-36:8082"

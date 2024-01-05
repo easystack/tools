@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    group: ratelimit-global
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - image: hub.ecns.io/library/redis:alpine
+        imagePullPolicy: Always
+        name: redis
+        ports:
+        - name: redis
+          containerPort: 6379
+      restartPolicy: Always
+      serviceAccountName: ""

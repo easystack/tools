@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-provider-test-eureka
+  group: springboot-eureka-serviceentry
+  labels:
+    app: springboot-provider-test-eureka
+spec:
+  selector:
+    matchLabels:
+      app: springboot-provider-test-eureka
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: springboot-provider-test-eureka
+        version: v1
+    spec:
+      containers:
+        - name: provider
+          image: hub.ecns.io/library/springboot-provider-test-eureka:v0.0.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9000
+          env:
+          - name: EUREKA_ADDRESS
+            value: "http://eureka:8761/eureka/"

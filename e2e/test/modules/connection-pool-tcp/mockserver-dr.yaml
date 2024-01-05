@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: mockserver
+spec:
+  host: mockserver
+  subsets:
+  - labels:
+      app: mockserver
+      version: v1
+    name: v1
+  - labels:
+      app: mockserver
+      version: v2
+    name: v2
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 10    # 可选，HTTP1/TCP最大连接数，默认2^32-1
+        #connectTimeout: 1ms
+        #maxConnectionDuration: 30ms

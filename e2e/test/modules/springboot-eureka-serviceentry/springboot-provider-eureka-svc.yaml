@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: springboot-provider-test-eureka
+  name: springboot-provider-test-eureka
+spec:
+  clusterIP: 10.222.19.60
+  ports:
+    - name: http
+      port: 9000
+      protocol: TCP
+      targetPort: 9000
+  selector:
+    app: springboot-provider-test-eureka

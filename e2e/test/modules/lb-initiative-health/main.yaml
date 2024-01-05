@@ -1,0 +1,49 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = lb-initiative-health
+      operationTimeout: "120s"
+
+- name: Create prism-conf Config
+  phases:
+  - namespaceRange:
+      min: 22
+      max: 22
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: prism-conf
+      objectTemplatePath: modules/lb-initiative-health/prism-conf.yaml
+
+- name: Create lb-initiative-health service and deploy
+  phases:
+  - namespaceRange:
+      min: 22
+      max: 22
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: mockserver
+      objectTemplatePath: modules/lb-initiative-health/mockserver-svc.yaml
+    - basename: mockserver-v1-deploy
+      objectTemplatePath: modules/lb-initiative-health/mockserver-v1-deploy.yaml
+    - basename: mockserver-v2-deploy
+      objectTemplatePath: modules/lb-initiative-health/mockserver-v2-deploy.yaml
+    - basename: mockserver-v3-deploy
+      objectTemplatePath: modules/lb-initiative-health/mockserver-v3-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

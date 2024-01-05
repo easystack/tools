@@ -1,0 +1,49 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = dubbo-demo
+      operationTimeout: "120s"
+
+- name: Create zookeeper service and deploy
+  phases:
+  - namespaceRange:
+      min: 5
+      max: 5
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: zookeeper
+      objectTemplatePath: modules/dubbo-demo/zk.yaml
+    - basename: zookeeper
+      objectTemplatePath: modules/dubbo-demo/zk-svc.yaml
+
+- name: Create dubbo-demo service and deploy
+  phases:
+  - namespaceRange:
+      min: 5
+      max: 5
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: dubbo-demo
+      objectTemplatePath: modules/dubbo-demo/consumer.yaml
+    - basename: dubbo-demo-provider
+      objectTemplatePath: modules/dubbo-demo/provider.yaml
+    - basename: dubbo-demo-consumer
+      objectTemplatePath: modules/dubbo-demo/consumer-deploy.yaml
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

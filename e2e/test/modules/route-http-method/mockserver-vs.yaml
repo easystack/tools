@@ -1,0 +1,44 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: mockserver
+spec:
+  gateways:
+  - mockserver-gateway
+  hosts:
+  - mockserver.com
+  - www.mockserver.com
+  http:
+  - match:
+    - method:
+        exact: GET
+      uri:
+        prefix: /
+    route:
+    - destination:
+        host: mockserver
+        port:
+          number: 80
+        subset: v1
+  - match:
+    - method:
+        exact: POST
+      uri:
+        prefix: /api/test
+    route:
+    - destination:
+        host: mockserver
+        port:
+          number: 80
+        subset: v2
+  - match:
+    - method:
+        exact: DELETE
+      uri:
+        prefix: /api/test
+    route:
+    - destination:
+        host: mockserver
+        port:
+          number: 80
+        subset: v1

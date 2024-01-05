@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dubbo-consumer-test-nacos
+  group: dubbo-nacos
+  labels:
+    app: dubbo-consumer-test-nacos
+spec:
+  selector:
+    matchLabels:
+      app: dubbo-consumer-test-nacos
+  template:
+    metadata:
+      annotations:
+        "sidecar.istio.io/logLevel": debug
+      labels:
+        app: dubbo-consumer-test-nacos
+        version: v1
+    spec:
+      containers:
+        - name: consumer
+          image: hub.ecns.io/library/dubbo-consumer-test-nacos:v0.0.1
+          imagePullPolicy: Always
+          env:
+            - name: DUBBO_SERVICE_NAMESPACE
+              value: "istiotest-33"

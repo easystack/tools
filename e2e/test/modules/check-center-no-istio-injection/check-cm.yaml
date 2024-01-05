@@ -1,0 +1,2618 @@
+apiVersion: v1
+data:
+  startup.sh: |+
+    #!/bin/sh
+
+    # Update /etc/hosts first to allow following command work.
+    mkdir -p /etc/hosts.d
+    # \cp overwrite if the file existed
+    \cp -f /etc/hosts /etc/hosts.d/original_host.conf
+
+    /tmp/host_cronjob.sh
+
+    env_file=/tmp/__busybox_env
+    if [ -f $env_file ]; then
+      rm -f $env_file
+    fi
+    for e in `env`; do
+      echo "export $e" >> $env_file
+    done
+    sleep 1200s
+    bash /tmp/check_ratelimit_global.sh
+    while true; do echo `kubectl get nodes | grep -v NAME`; sleep 100;done
+
+  host_cronjob.sh: |
+    #!/bin/sh
+
+    # \cp overwrite if the file existed
+    \cp -f /host-etc/hosts /etc/hosts.d/node_hosts.conf
+    # add original hosts file content and node latest hosts file content to tmp file
+    cat /etc/hosts.d/*.conf > /tmp/hosts
+    # compare the content, if different then update the /etc/hosts file
+    if ( diff /etc/hosts /tmp/hosts ) ; then
+       echo 'no need to update the hosts file'
+    else
+       cat /tmp/hosts > /etc/hosts
+       echo 'update hosts file done'
+    fi
+
+  main.sh: |
+    #!/usr/bin/env bash
+    
+    for script in /tmp/*.sh; do
+        script_name=$(basename "$script")
+    
+        if [[ ! "$script_name" =~ ^check && ! "$script_name" =~ ^start && ! 
+    "$script_name" =~ ^main && ! "$script_name" =~ ^host ]]; then 
+            bash "$script"
+        fi
+    done
+    
+    sleep 300s
+    
+    for script in /tmp/*.sh; do
+        script_name=$(basename "$script")
+    
+        if [[ "$script_name" =~ ^check ]]; then
+            bash "$script"
+        fi
+    done
+
+  sidecar.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: Sidecar
+    metadata:
+      name: busybox
+      namespace: istiotest-2
+    spec:
+      egress:
+      - hosts:
+        - "*/*"
+    EOF
+
+  gated_launch_to_v1_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1alpha3
+    kind: DestinationRule
+    metadata:
+      name: helloword
+      namespace: istiotest-7
+    spec:
+      host: helloword-svc
+      subsets:
+      - name: v1
+        labels:
+          version: v1
+      - name: v2
+        labels:
+          version: v2
+    EOF
+
+  gated_launch_to_v1_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1alpha3
+    kind: VirtualService
+    metadata:
+      name: helloword
+      namespace: istiotest-7
+    spec:
+      hosts:
+      - helloword-svc
+      http:
+      - route:
+        - destination:
+            host: helloword-svc
+            subset: v1
+    EOF
+
+  check_gated_launch_to_v1.sh: |
+    #!/bin/sh
+    COUNT=0
+    # 进入容器
+    while [ $COUNT -lt 20 ]; do
+      sleep 1
+      out=$(curl -s http://helloword-svc.istiotest-7:5000/hello)
+      timestamp=$(date +"%m-%d %H:%M")
+      if [[ $out == *"Hello version: v1"* ]]; then
+        echo "$timestamp [gated-launch-to-v1] succeed $out" >> /host-tmp/istiotest.log
+      else
+        echo "$timestamp [gated-launch-to-v1] error $out"  >> /host-tmp/istiotest.log
+      fi
+      ((COUNT++))
+    done
+
+  mockserver_gateway.sh: |
+    #!/bin/bash
+
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: Gateway
+    metadata:
+      name: mockserver-gateway
+      namespace: zhangyan-1
+    spec:
+      selector:
+        istio: ingressgateway
+      servers:
+      - hosts:
+        - mockserver.com
+        - www.mockserver.com
+        port:
+          name: http
+          number: 80
+          protocol: HTTP
+    EOF
+  fault_mockserver_vs_bask.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-6
+    spec:
+      gateways:
+      - mockserver-gateway
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+        fault:
+          delay:
+            fixedDelay: 10s
+            percentage:
+              value: 100.0
+          abort:
+            httpStatus: 403
+            percentage:
+              value: 100.0
+    EOF
+
+  fault_mockserver_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-6
+    spec:
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+        fault:
+          delay:
+            fixedDelay: 10s
+            percentage:
+              value: 100.0
+          abort:
+            httpStatus: 403
+            percentage:
+              value: 100.0
+    EOF
+  check_fault_injection_bak.sh: |
+    #!/bin/bash
+
+    ip=$(kubectl get services istio-ingressgateway -n servicemesh -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+    COUNT=0
+    while [ $COUNT -lt 3 ]; do
+      sleep 1
+      headers=$(mktemp)
+      out=$(curl -s -D "$headers" -o /dev/null -w "%{http_code} %{time_total}\n" -H Host:www.mockserver.com $ip)
+      status=$(echo "$out" | awk '{print $1}')
+      response_time=$(echo "$out" | awk '{print $2}')
+      timestamp=$(date +"%m-%d %H:%M")
+    
+      if [[ $status == "403" ]]; then
+        if (( $(awk -v t=$response_time 'BEGIN {if (t>=8 && t<=12) print 1; else print 0}') )); then
+          echo "$timestamp [fault-injection] succeed (Status: $status) (Response Time: ${response_time}s)" >> /host-tmp/istiotest.log
+        else
+          echo "$timestamp [fault-injection] error (Status: $status) (Response Time: ${response_time}s)" >> /host-tmp/istiotest.log
+        fi
+      else
+        echo "$timestamp [fault-injection] error (Status: $status) (Response Time: ${response_time}s)" >> /host-tmp/istiotest.log
+      fi
+    
+      rm "$headers"
+      ((COUNT++))
+    done
+
+  check_fault_injection.sh: |
+    #!/bin/bash
+
+    COUNT=0
+    while [ $COUNT -lt 3 ]; do
+      sleep 1
+      headers=$(mktemp)
+      out=$(curl -s mockserver.istiotest-6 -o /dev/null -w "%{http_code} %{time_total}\n")
+      status=$(echo "$out" | awk '{print $1}')
+      response_time=$(echo "$out" | awk '{print $2}')
+      timestamp=$(date +"%m-%d %H:%M")
+    
+      if [[ $status == "403" ]]; then
+        if (( $(awk -v t=$response_time 'BEGIN {if (t>=10 && t<=12) print 1; else print 0}') )); then
+          echo "$timestamp [fault-injection] succeed (Status: $status) (Response Time: ${response_time}s)" >> /host-tmp/istiotest.log
+        else
+          echo "$timestamp [fault-injection] error (Status: $status) (Response Time: ${response_time}s)" >> /host-tmp/istiotest.log
+        fi
+      else
+        echo "$timestamp [fault-injection] error (Status: $status) (Response Time: ${response_time}s)" >> /host-tmp/istiotest.log
+      fi
+    
+      rm "$headers"
+      ((COUNT++))
+    done
+
+  canary_weight_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-1
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  canary_weight_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-1
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+          weight: 1
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+          weight: 4
+    EOF
+
+  canary_weight_gw.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: Gateway
+    metadata:
+      name: mockserver-gateway
+      namespace: istiotest-1
+    spec:
+      selector:
+        istio: istio-ingressgateway
+      servers:
+      - hosts:
+        - mockserver
+        - mockserver.com
+        - www.mockserver.com
+        port:
+          name: http
+          number: 80
+          protocol: HTTP
+    EOF
+
+  check_canary_weight_canary.sh: |
+    #!/usr/bin/bash
+
+    v1_cnt=0
+    v2_cnt=0
+    echo "v1 : v2 = 1 : 4"
+    
+    for ((i=0; i<400; i++))
+    do
+      res=$(curl -s mockserver.istiotest-1)
+      if echo $res | grep v1 >/dev/null; then
+        let v1_cnt++
+      fi
+      if echo $res | grep v2 >/dev/null; then
+        let v2_cnt++
+      fi
+      sleep 0.1
+    done
+    
+    ratio=$(bc -l <<< "$v1_cnt / $v2_cnt")
+    expected_ratio=$(bc -l <<< "1 / 4")
+    timestamp=$(date +"%m-%d %H:%M")
+    if (( $(bc <<< "$ratio >= ($expected_ratio - 0.02) && $ratio <= ($expected_ratio + 0.02)") )); then
+      echo "$timestamp [canary-weight] succeed 1:4 v1: $v1_cnt v2: $v2_cnt" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [canary-weight] error 1:4 v1: $v1_cnt v2: $v2_cnt" >> /host-tmp/istiotest.log
+    fi
+
+  check_canary_weight_gateway.sh: |
+    #!/usr/bin/bash
+    # 需要注意传参 mockserver.com
+    if [ -z "$1" ];then
+      echo "please input host"
+      exit 1
+    fi
+    node_ip=`kubectl get node -owide|grep mas0|awk '{print $6}'`
+    ingress_gateway_ip=`kubectl get svc -nservicemesh istio-ingressgateway|awk '{print $4}'|grep 172`
+    cp /istio-check/binshan.pem ~/.ssh/binshan.pem
+    chmod 600 ~/.ssh/binshan.pem
+    while true
+    do
+      res=$( ssh -i ~/.ssh/binshan.pem escore@${node_ip} "curl -s -HHost:$1 ${ingress_gateway_ip} -o /dev/null -w \"%{http_code}\\n\"")
+      echo "host: $1"
+      echo "return code: $res"
+      sleep .5
+    done
+
+  connection_pool_http_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-3
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        connectionPool:
+          http:
+            http2MaxRequests: 5
+    EOF
+
+  connection_pool_http_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-3
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_connection_pool_http.sh: |
+    #!/bin/bash
+    
+    echo "limit http connection to 1"
+    sleep 2
+    
+    temp_file=$(mktemp)
+    
+    for i in $(seq 1 20); do
+        (
+            response=$(curl -s mockserver.istiotest-3 -o /dev/null -w "%{http_code}\n")
+            if [[ $response == 503 ]]; then
+                echo "503" >> "$temp_file"
+            fi
+        ) &
+    done
+    
+    wait
+    
+    count=$(grep -c "503" "$temp_file")
+    timestamp=$(date +"%m-%d %H:%M")
+    rm "$temp_file"
+    if (($count >= 3)); then
+        echo "$timestamp [connection_pool_http] succeed 503 count $count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [connection_pool_http] error 503 count $count" >> /host-tmp/istiotest.log
+    fi
+
+  connection_pool_tcp_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-4
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        connectionPool:
+          tcp:
+            maxConnections: 10  
+            #connectTimeout: 1ms
+            #maxConnectionDuration: 30ms
+    EOF
+
+  connection_pool_tcp_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-4
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+    EOF
+
+  check_connection_pool_tcp.sh: |
+    #!/bin/bash
+    
+    echo "limit tcp connection to 10"
+    sleep 2
+    
+    temp_file=$(mktemp)
+    
+    for i in $(seq 1 50); do
+        (
+            response=$(curl -s mockserver.istiotest-4 -o /dev/null -w "%{http_code}\n")
+        ) &
+    done
+    
+    wait
+    ip=$(kubectl get po -nistiotest-4 -owide|grep v1|awk '{print $6}')
+    check_pod=$(kubectl get po -nistiotest-2 |grep check-box|awk '{print $1}'|head -n 1)
+    count=$(kubectl -nistiotest-2 exec -it $check_pod -c istio-proxy -- netstat -ant|grep -c $ip)
+    timestamp=$(date +"%m-%d %H:%M")
+    if (($count == 10)); then
+        echo "$timestamp [connection_pool_tcp] succeed ESTABLISHED count $count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [connection_pool_tcp] error ESTABLISHED count $count" >> /host-tmp/istiotest.log
+    fi
+
+  check_dubbo_demo.sh: |
+    #!/usr/bin/bash
+
+    echo "send request to dubbo consumer"
+    sleep 1
+    echo "return code: "`curl -s http://dubbo-sample-consumer.dubbo-demo:8383/hello?name=xxb -o /dev/null -w "%{http_code}\n"`
+    curl "http://dubbo-sample-consumer.dubbo-demo:8383/hello?name=xxb"|cut -d 'c' -f 1
+  
+  lb_consistent_hash_cookie_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-8
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        loadBalancer:
+          consistentHash:
+            httpCookie:
+              name: user_for_hash
+              ttl: 30s
+    EOF
+
+  lb_consistent_hash_cookie_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-8
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_consistent_hash_cookie.sh: |
+    #!/usr/bin/bash
+    
+    v1_cnt=0
+    v2_cnt=0
+    for ((i=1; i<=20; i++))
+    do
+      res=$(curl -s --cookie "user_for_hash=my_user" http://mockserver.istiotest-8)
+      if [ "$res" = "v1" ]; then
+        ((v1_cnt++))
+      fi
+      if [ "$res" = "v2" ]; then
+        ((v2_cnt++))
+      fi
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v1_cnt -eq 0 ] || [ $v2_cnt -eq 0 ]; then
+      echo "$timestamp [lb_consistent_hash_cookie] succeed v1 $v1_cnt v2 $v2_cnt" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [lb_consistent_hash_cookie] error v1 $v1_cnt v2 $v2_cnt" >> /host-tmp/istiotest.log
+    fi
+
+  lb_consistent_hash_header_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-9
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        loadBalancer:
+          consistentHash:
+            httpHeaderName: header_for_hash
+    EOF
+
+  lb_consistent_hash_header_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-9
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_consistent_hash_header.sh: |
+    #!/usr/bin/bash
+    
+    v1_cnt=0
+    v2_cnt=0
+    for ((i=1; i<=20; i++))
+    do
+      res=$(curl -s -Hheader_for_hash:abc http://mockserver.istiotest-9)
+      if [ "$res" = "v1" ]; then
+        ((v1_cnt++))
+      fi
+      if [ "$res" = "v2" ]; then
+        ((v2_cnt++))
+      fi
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v1_cnt -eq 0 ] || [ $v2_cnt -eq 0 ]; then
+      echo "$timestamp [lb_consistent_hash_header] succeed v1 $v1_cnt v2 $v2_cnt" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [lb_consistent_hash_header] error v1 $v1_cnt v2 $v2_cnt" >> /host-tmp/istiotest.log
+    fi
+
+  lb_consistent_hash_param_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-10
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        loadBalancer:
+          consistentHash:
+            httpQueryParameterName: param_for_hash
+    EOF
+
+  lb_consistent_hash_param_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-10
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_consistent_hash_param.sh: |
+    #!/usr/bin/bash
+    
+    v1_cnt=0
+    v2_cnt=0
+    for ((i=1; i<=20; i++))
+    do
+      res=$(curl -s mockserver.istiotest-10?param_for_hash=ab1)
+      if [ "$res" = "v1" ]; then
+        ((v1_cnt++))
+      fi
+      if [ "$res" = "v2" ]; then
+        ((v2_cnt++))
+      fi
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v1_cnt -eq 0 ] || [ $v2_cnt -eq 0 ]; then
+      echo "$timestamp [lb_consistent_hash_param] succeed v1 $v1_cnt v2 $v2_cnt" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [lb_consistent_hash_param] error v1 $v1_cnt v2 $v2_cnt" >> /host-tmp/istiotest.log
+    fi
+
+  lb_simple_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-11
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+    EOF
+
+  lb_simple_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-11
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_simple.sh: |
+    #!/usr/bin/bash
+    
+    v1_cnt=0
+    v2_cnt=0
+    for ((i=1; i<=200; i++))
+    do
+      res=$(curl -s mockserver.istiotest-11)
+      if [ "$res" = "v1" ]; then
+        ((v1_cnt++))
+      fi
+      if [ "$res" = "v2" ]; then
+        ((v2_cnt++))
+      fi
+    done
+
+    timestamp=$(date +"%m-%d %H:%M")
+    
+    v1v2_ratio=$(awk "BEGIN { ratio=$v1_cnt/$v2_cnt; printf \"%.2f\", ratio }")
+    
+    if (( $(echo "$v1v2_ratio >= 0.98 && $v1v2_ratio <= 1.02" | bc -l) )); then
+      echo "$timestamp [lb_simple] succeed v1 $v1_cnt v2 $v2_cnt (v1:v2 ratio=$v1v2_ratio)" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [lb_simple] error v1 $v1_cnt v2 $v2_cnt (v1:v2 ratio=$v1v2_ratio)" >> /host-tmp/istiotest.log
+    fi
+
+  outlier_detection_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-12
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        outlierDetection:
+          #splitExternalLocalOriginErrors: true  
+          #consecutiveLocalOriginFailures: 1     
+          #consecutiveGatewayErrors: 1          
+          consecutive5xxErrors: 1               
+          interval: 5s                          
+          baseEjectionTime: 10s                  
+          maxEjectionPercent: 100               
+          #minHealthPercent: 0    
+    EOF
+
+  outlier_detection_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-12
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_outlier_detection.sh: |
+    #!/usr/bin/bash
+    
+    echo "v1 503 error, limit 5"
+    echo "5s interval, 10s baseEjectionTime, 100% maxEjectionPercent"
+    sleep 3
+    
+    counter=0
+    count=0
+    
+    while [ $counter -lt 60 ]
+    do
+      res=$(curl -s mockserver.istiotest-12)
+      if [[ $res == *"v2"* ]]; then
+          ((count++))
+      fi
+      sleep 0.2
+      ((counter++))
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $count -eq 60 ]; then
+      echo "$timestamp [outlier-detection] succeed v2 $count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [outlier-detection] error v2 $count" >> /host-tmp/istiotest.log
+    fi
+
+  ratelimit_global_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-13
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  ratelimit_global_gw.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: Gateway
+    metadata:
+      name: mockserver-gateway
+      namespace: istiotest-13
+    spec:
+      selector:
+        istio: istio-ingressgateway
+      servers:
+      - hosts:
+        - mockserver
+        - ratelimit.mockserver.com
+        port:
+          name: http
+          number: 80
+          protocol: HTTP
+    EOF
+
+  ratelimit_global_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-13
+    spec:
+      gateways:
+      - mockserver-gateway
+      - mesh
+      hosts:
+      - mockserver
+      - ratelimit.mockserver.com
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+        match:
+        - uri:
+            exact: /mockserver
+        rewrite:
+          uri: /
+    EOF
+
+  ratelimit_global_filter_ratelimit_envoyfilter.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1alpha3
+    kind: EnvoyFilter
+    metadata:
+      name: filter-ratelimit
+      namespace: servicemesh
+    spec:
+      workloadSelector:
+        # select by label in the same namespace
+        labels:
+          istio: istio-ingressgateway
+      configPatches:
+        # The Envoy config you want to modify
+        - applyTo: HTTP_FILTER
+          match:
+            context: GATEWAY
+            listener:
+              filterChain:
+                filter:
+                  name: "envoy.filters.network.http_connection_manager"
+                  subFilter:
+                    name: "envoy.filters.http.router"
+          patch:
+            operation: INSERT_BEFORE
+            # Adds the Envoy Rate Limit Filter in HTTP filter chain.
+            value:
+              name: envoy.filters.http.ratelimit
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+                # domain can be anything! Match it to the ratelimter service config
+                domain: mockserver-ratelimit
+                failure_mode_deny: true
+                timeout: 10s
+                rate_limit_service:
+                  grpc_service:
+                    envoy_grpc:
+                      cluster_name: outbound|8081||ratelimit.istiotest-13.svc.cluster.local
+                      authority: ratelimit.istiotest-13.svc.cluster.local
+                  transport_api_version: V3
+    EOF
+
+  ratelimit_global_filter_ratelimit_svc_envoyfilter.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1alpha3
+    kind: EnvoyFilter
+    metadata:
+      name: filter-ratelimit-svc
+      namespace: servicemesh
+    spec:
+      workloadSelector:
+        labels:
+          istio: istio-ingressgateway
+      configPatches:
+        - applyTo: VIRTUAL_HOST
+          match:
+            context: GATEWAY
+            routeConfiguration:
+              vhost:
+                name: ""
+                route:
+                  action: ANY
+          patch:
+            operation: MERGE
+            # Applies the rate limit rules.
+            value:
+              rate_limits:
+                - actions: # any actions in here
+                  - request_headers:
+                      header_name: ":path"
+                      descriptor_key: "PATH"
+    EOF
+
+  check_ratelimit_global.sh: |
+    #!/usr/bin/env bash
+
+    ip=$(kubectl get svc -n servicemesh  |awk '/istio-ingressgateway/ {print $3}')
+    url="$ip/mockserver"
+    host_header="Host: ratelimit.mockserver.com"
+    total_requests=1000
+    
+    declare -A response_codes
+    
+    for ((i=1; i<=$total_requests; i++)); do
+      response=$(curl -s -o /dev/null -w "%{http_code}" -H "$host_header" "$url")
+      response_codes[$response]=$(( ${response_codes[$response]} + 1 ))
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    echo "Response Code Statistics:"
+    for code in "${!response_codes[@]}"; do
+      echo "HTTP $code: ${response_codes[$code]} requests"
+      echo "$timestamp [ratelimit-global] HTTP $code: ${response_codes[$code]} requests" >> /host-tmp/istiotest.log
+    done
+
+  ratelimit_local_ef.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1alpha3
+    kind: EnvoyFilter
+    metadata:
+      name: filter-local-ratelimit-svc
+      namespace: istiotest-14
+    spec:
+      workloadSelector:
+        labels:
+          app: mockserver
+      configPatches:
+        - applyTo: HTTP_FILTER
+          match:
+            context: SIDECAR_INBOUND
+            listener:
+              filterChain:
+                filter:
+                  name: "envoy.filters.network.http_connection_manager"
+          patch:
+            operation: INSERT_BEFORE
+            value:
+              name: envoy.filters.http.local_ratelimit
+              typed_config:
+                "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+                type_url: type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                value:
+                  stat_prefix: http_local_rate_limiter
+                  token_bucket:
+                    max_tokens: 5
+                    tokens_per_fill: 5
+                    fill_interval: 10s
+                  filter_enabled:
+                    runtime_key: local_rate_limit_enabled
+                    default_value:
+                      numerator: 100
+                      denominator: HUNDRED
+                  filter_enforced:
+                    runtime_key: local_rate_limit_enforced
+                    default_value:
+                      numerator: 100
+                      denominator: HUNDRED
+                  response_headers_to_add:
+                    - append: false
+                      header:
+                        key: x-local-rate-limit
+                        value: 'true'
+    EOF
+
+  ratelimit_local_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF 
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-14
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  ratelimit_local_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-14
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+    EOF
+
+  check_ratelimit_local.sh: |
+    #!/bin/bash
+    
+    echo "limit 5 requests in 10 seconds"
+    sleep 3
+    
+    temp_file=$(mktemp)
+    error_429_count=$(grep -c "429" $temp_file)
+    success_200_count=$(grep -c "200" $temp_file)
+    
+    for i in $(seq 1 50); do
+        (
+            response=$(curl -s mockserver.istiotest-14 -o /dev/null -w "%{http_code}\n")
+            echo $response >> $temp_file
+        ) &
+    done
+    wait
+    
+    error_429_count=$(grep -c "429" $temp_file)
+    success_200_count=$(grep -c "200" $temp_file)
+    timestamp=$(date +"%m-%d %H:%M")
+    
+    if [ $error_429_count -eq 45 ] && [ $success_200_count -eq 5 ]; then
+        echo "$timestamp [ratelimit-local] succeed 429_count $error_429_count 200_count $success_200_count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [ratelimit-local] error 429_count $error_429_count 200_count $success_200_count" >> /host-tmp/istiotest.log
+    fi
+    
+    rm $temp_file
+
+  retry_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-15
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  retry_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-15
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+        retries:
+          attempts: 3
+          #perTryTimeout: 100ms
+          retryOn: 5xx
+    EOF
+
+  check_retry.sh: |
+    #!/usr/bin/bash
+    
+    echo "v1 503 error"
+    echo "retry 3 times"
+    sleep 2
+    echo "return code: "`curl -s mockserver.istiotest-15 -o /dev/null -w "%{http_code}\n"`
+    
+    echo "get v1 log"
+    sleep 2
+    
+    temp_file=$(mktemp)
+    kubectl get po -nistiotest-15|grep v1|awk '{print $1}'|xargs kubectl -nistiotest-15 logs >> "$temp_file"
+    
+    success_count=$(grep -c "Responding with \"503\"" "$temp_file")
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq 4 ]; then
+        echo "$timestamp [retry] succeed request_count $success_count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [retry] error request_count $success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    rm "$temp_file"
+
+  rewrite_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-16
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  rewrite_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-16
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+        match: 
+        - uri:
+            exact: /mockserver
+        rewrite: 
+          uri: /
+    EOF
+
+  check_rewrite.sh: |
+    #!/usr/bin/bash
+    
+    count=0
+    success_count=0
+    
+    while [ $count -lt 30 ]; do
+        code=$(curl -s http://mockserver.istiotest-16/mockserver -o /dev/null -w "%{http_code}")
+        if [ "$code" -eq 200 ]; then
+            success_count=$((success_count + 1))
+        fi
+        count=$((count + 1))
+        sleep 1
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq 30 ]; then
+        echo "$timestamp [rewrite] succeed request_code 200" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [rewrite] error request_code 404" >> /host-tmp/istiotest.log
+    fi
+
+  check_spring_demo.sh: |
+    #!/usr/bin/bash
+
+    echo "send request to spring consumer"
+    sleep 1
+    curl -s springboot-consumer.spring-demo:9070/consumer/curl
+
+  timeout_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-18
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  timeout_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-18
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+        timeout: 1ms
+    EOF
+
+  check_timeout.sh: |
+    #!/usr/bin/bash
+    
+    count=0
+    success_count=0
+    
+    while [ $count -lt 30 ]; do
+        code=$(curl -s -o /dev/null -w "%{http_code}\n" http://mockserver.istiotest-18)
+        echo $code
+        echo $response
+    
+        if [ "$code" -eq 504 ]; then
+            success_count=$((success_count + 1))
+        fi
+    
+        count=$((count + 1))
+        sleep 1
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq 30 ]; then
+        echo "$timestamp [timeout] succeed response_code 504" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [timeout] error response_code 200" >> /host-tmp/istiotest.log
+    fi
+
+  traffic_mirror_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-19
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  traffic_mirror_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-19
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+        mirror:
+          host: mockserver       
+          subset: v2         
+          port:              
+            number: 80
+        mirrorPercentage:    
+          value: 100.0
+    EOF
+
+  check_traffic_mirror.sh: |
+    #!/usr/bin/bash
+    
+    echo "mirror to v2"
+    sleep 2
+    v1_cnt=0
+    v2_cnt=0
+    count=0 
+    
+    while [ $count -lt 30 ]; do
+      res=$(curl -s mockserver.istiotest-19)
+      if echo $res|grep v1>/dev/null;then
+        let v1_cnt++
+      fi
+      if echo $res|grep v2>/dev/null;then
+        let v2_cnt++
+      fi
+      sleep .2
+      let count++ 
+    done
+    
+    temp_file=$(mktemp)
+    kubectl get po -nistiotest-19|grep v2|awk '{print $1}'|xargs kubectl -nistiotest-19 logs >> "$temp_file"
+    
+    success_count=$(grep -c "Responding with \"200\"" "$temp_file")
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq 30 ]; then
+        echo "$timestamp [traffic-mirror] succeed v2 $success_count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [traffic-mirror] error v2 $success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    rm "$temp_file"
+
+  lb_circuit_breaking_health_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-20
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      - labels:
+          app: mockserver
+          version: v3
+        name: v3
+      - labels:
+          app: mockserver
+          version: v4
+        name: v4
+      - labels:
+          app: mockserver
+          version: v5
+        name: v5
+      - labels:
+          app: mockserver
+          version: v6
+        name: v6
+      - labels:
+          app: mockserver
+          version: v7
+        name: v7
+      - labels:
+          app: mockserver
+          version: v8
+        name: v8
+      - labels:
+          app: mockserver
+          version: v9
+        name: v9
+      - labels:
+          app: mockserver
+          version: v10
+        name: v10
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+        outlierDetection:
+          #splitExternalLocalOriginErrors: true  
+          #consecutiveLocalOriginFailures: 1     
+          #consecutiveGatewayErrors: 1           
+          consecutive5xxErrors: 3               
+          interval: 10s                          
+          baseEjectionTime: 600s                
+          maxEjectionPercent: 100  
+          #minHealthPercent: 0
+    EOF
+
+  lb_circuit_breaking_health_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-20
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_circuit_breaking_health.sh: |
+    #!/bin/bash
+
+    count=0
+    success_count=0
+    
+    while [ $success_count -lt 200 ]; do
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://mockserver.istiotest-20)
+    
+        if [ $response -eq 200 ]; then
+            success_count=$((success_count+1))
+        fi
+        
+        count=$((count+1))
+        sleep 0.5s
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq 200 ]; then
+        echo "$timestamp [lb-circuit-breaking-health] succeed 200_count $success_count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [lb-circuit-breaking-health] error 200_count $success_count" >> /host-tmp/istiotest.log
+    fi
+
+  lb_consistent_hash_sourceip_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-21
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      trafficPolicy:
+        loadBalancer:
+          consistentHash:
+            useSourceIp: true
+    EOF
+
+  lb_consistent_hash_sourceip_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-21
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_consistent_hash_sourceip.sh: |
+    #!/bin/bash
+
+    COUNT=200
+    URL="http://mockserver.istiotest-21"
+    
+    response=$(curl -s $URL)
+    
+    count=1
+    success_count=1
+    
+    while [ $count -lt $COUNT ]; do
+        response_temp=$(curl -s $URL)
+        if [ "$response_temp" == "$response" ]; then
+            success_count=$((success_count+1))
+        fi
+    
+        count=$((count+1))
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq $COUNT ]; then
+        echo "$timestamp [lb-consistent-hash-sourceip] succeed resp_is_all $response" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [lb-consistent-hash-sourceip] error resp_is_not_all $response" >> /host-tmp/istiotest.log
+    fi
+
+  lb_initiative_health_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-22
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+      - labels:
+          app: mockserver
+          version: v3
+        name: v3
+      trafficPolicy:
+        loadBalancer:
+          simple: ROUND_ROBIN
+    EOF
+
+  lb_initiative_health_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-22
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      http:
+      - route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+    EOF
+
+  check_lb_initiative_health.sh: |
+    #!/bin/bash
+
+    count=0
+    success_count=0
+    
+    while [ $success_count -lt 200 ]; do
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://mockserver.istiotest-22)
+    
+        if [ $response -eq 200 ]; then
+            success_count=$((success_count+1))
+        fi
+        
+        count=$((count+1))
+        sleep 0.5s
+    done
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $success_count -eq 200 ]; then
+        echo "$timestamp [lb-initiative-health] succeed 200_count $success_count" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [lb-initiative-health] error 200_count $success_count" >> /host-tmp/istiotest.log
+    fi
+
+  route_http_header_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-23
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  route_http_header_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-23
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - match:
+        - headers:
+            version:
+              exact: v1
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - headers:
+            version:
+              exact: v2
+            name:
+              exact: mockserver-v2
+        route:
+        - destination:
+            host: mockserver  
+            port:
+              number: 80
+            subset: v2
+    EOF
+
+  check_route_http_header.sh: |
+    #!/bin/bash
+
+    v2_success_count=0
+    v2_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -Hversion:v2 -Hname:mockserver-v2 mockserver.istiotest-23)
+    
+        if [[ ${output} == "v2" ]]; then
+            v2_success_count=$((v2_success_count + 1))
+        else
+            v2_failure_count=$((v2_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v2_failure_count -eq 0 ]; then
+      echo "$timestamp [route-http-header] succeed v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [route-http-header] error v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v1_success_count=0
+    v1_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -Hversion:v1 mockserver.istiotest-23)
+    
+        if [[ ${output} == "v1" ]]; then
+            v1_success_count=$((v1_success_count + 1))
+        else
+            v1_failure_count=$((v1_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp1=$(date +"%m-%d %H:%M")
+    if [ $v1_failure_count -eq 0 ]; then
+      echo "$timestamp1 [route-http-header] succeed v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp1 [route-http-header] error v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v404_success_count=0
+    v404_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -s -o /dev/null -w "%{http_code}" -Hversion:v2 http://mockserver.istiotest-23)
+    
+        if [[ ${output} == "404" ]]; then
+            v404_success_count=$((v404_success_count + 1))
+        else
+            v404_failure_count=$((v404_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp2=$(date +"%m-%d %H:%M")
+    if [ $v404_failure_count -eq 0 ]; then
+      echo "$timestamp2 [route-http-header] succeed 404_count $v404_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp2 [route-http-header] error 404_count $v404_success_count" >> /host-tmp/istiotest.log
+    fi
+
+  route_http_method_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-24
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+  
+  route_http_method_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-24
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - match:
+        - method:
+            exact: GET
+          uri:
+            prefix: /
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - method:
+            exact: POST
+          uri:
+            prefix: /api/test
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+      - match:
+        - method:
+            exact: DELETE
+          uri:
+            prefix: /api/test
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+    EOF
+
+  check_route_http_method.sh: |
+    #!/bin/bash
+
+    v2_success_count=0
+    v2_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -X POST mockserver.istiotest-24/api/test)
+    
+        if [[ ${output} == "v2-post-api-test" ]]; then
+            v2_success_count=$((v2_success_count + 1))
+        else
+            v2_failure_count=$((v2_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v2_failure_count -eq 0 ]; then
+      echo "$timestamp [route-http-method] succeed v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [route-http-method] error v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v1_success_count=0
+    v1_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -X DELETE mockserver.istiotest-24/api/test)
+    
+        if [[ ${output} == "v1-delete-api-test" ]]; then
+            v1_success_count=$((v1_success_count + 1))
+        else
+            v1_failure_count=$((v1_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp1=$(date +"%m-%d %H:%M")
+    if [ $v1_failure_count -eq 0 ]; then
+      echo "$timestamp1 [route-http-method] succeed v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp1 [route-http-method] error v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v405_success_count=0
+    v405_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -s -o /dev/null -w "%{http_code}" http://mockserver.istiotest-24/api/test)
+    
+        if [[ ${output} == "405" ]]; then
+            v405_success_count=$((v405_success_count + 1))
+        else
+            v405_failure_count=$((v405_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp2=$(date +"%m-%d %H:%M")
+    if [ $v405_failure_count -eq 0 ]; then
+      echo "$timestamp2 [route-http-method] succeed 405_count $v405_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp2 [route-http-method] error 405_count $v405_success_count" >> /host-tmp/istiotest.log
+    fi
+
+  route_http_param_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-25
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  route_http_param_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-25
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - match:
+        - queryParams:
+            version:
+              exact: v1
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - queryParams:
+            version:
+              exact: v2
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+      - match:
+        - queryParams:
+            version:
+              exact: v1
+            name:
+              exact: zhangsan
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+    EOF
+
+  check_route_http_param.sh: |
+    #!/bin/bash
+
+    v2_success_count=0
+    v2_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl mockserver.istiotest-25?version=v2)
+    
+        if [[ ${output} == "v2" ]]; then
+            v2_success_count=$((v2_success_count + 1))
+        else
+            v2_failure_count=$((v2_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v2_failure_count -eq 0 ]; then
+      echo "$timestamp [route-http-param] succeed v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [route-http-param] error v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v1_success_count=0
+    v1_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl mockserver.istiotest-25?version=v1)
+    
+        if [[ ${output} == "v1" ]]; then
+            v1_success_count=$((v1_success_count + 1))
+        else
+            v1_failure_count=$((v1_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp1=$(date +"%m-%d %H:%M")
+    if [ $v1_failure_count -eq 0 ]; then
+      echo "$timestamp1 [route-http-param] succeed v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp1 [route-http-param] error v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v11_success_count=0
+    v11_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -s "http://mockserver.istiotest-25?name=zhangsan&version=v1")
+    
+        if [[ ${output} == "v1" ]]; then
+            v11_success_count=$((v11_success_count + 1))
+        else
+            v11_failure_count=$((v11_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp2=$(date +"%m-%d %H:%M")
+    if [ $v11_failure_count -eq 0 ]; then
+      echo "$timestamp2 [route-http-param] succeed v1_count $v11_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp2 [route-http-param] error v1_count $v11_success_count" >> /host-tmp/istiotest.log
+    fi
+
+  route_http_uri_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-26
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  route_http_uri_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-26
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - match:
+        - uri:
+            prefix: /api/test1
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - uri:
+            prefix: /api/test2
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+      - match:
+        - uri:
+            exact: /
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+    EOF
+
+  check_route_http_uri.sh: |
+    #!/bin/bash
+
+    v2_success_count=0
+    v2_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl mockserver.istiotest-26/api/test2)
+    
+        if [[ ${output} == "v2-get-api-test" ]]; then
+            v2_success_count=$((v2_success_count + 1))
+        else
+            v2_failure_count=$((v2_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v2_failure_count -eq 0 ]; then
+      echo "$timestamp [route-http-uri] succeed v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [route-http-uri] error v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v1_success_count=0
+    v1_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl mockserver.istiotest-26/api/test1)
+    
+        if [[ ${output} == "v1-get-api-test" ]]; then
+            v1_success_count=$((v1_success_count + 1))
+        else
+            v1_failure_count=$((v1_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp1=$(date +"%m-%d %H:%M")
+    if [ $v1_failure_count -eq 0 ]; then
+      echo "$timestamp1 [route-http-uri] succeed v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp1 [route-http-uri] error v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    fi
+
+  route_http_all_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-27
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  route_http_all_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF 
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-27
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - match:
+        - headers:
+            version:
+              exact: v1
+          method:
+            exact: GET
+          uri:
+            exact: /api/test
+          queryParams:
+            version:
+              exact: v1
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - headers:
+            version:
+              exact: v2
+          method:
+            exact: POST
+          uri:
+            exact: /api/test
+          queryParams:
+            name:
+              exact: istio
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+    EOF
+
+  check_route_http_all.sh: |
+    #!/bin/bash
+
+    v2_success_count=0
+    v2_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -Hversion:v2 -X POST http://mockserver.istiotest-27/api/test?name=istio)
+    
+        if [[ ${output} == "v2-post-api-test" ]]; then
+            v2_success_count=$((v2_success_count + 1))
+        else
+            v2_failure_count=$((v2_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp=$(date +"%m-%d %H:%M")
+    if [ $v2_failure_count -eq 0 ]; then
+      echo "$timestamp [route-http-all] succeed v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp [route-http-all] error v2_count $v2_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v1_success_count=0
+    v1_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -Hversion:v1 -X GET mockserver.istiotest-27/api/test?version=v1)
+    
+        if [[ ${output} == "v1-post-api-test" ]]; then
+            v1_success_count=$((v1_success_count + 1))
+        else
+            v1_failure_count=$((v1_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp1=$(date +"%m-%d %H:%M")
+    if [ $v1_failure_count -eq 0 ]; then
+      echo "$timestamp1 [route-http-all] succeed v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp1 [route-http-all] error v1_count $v1_success_count" >> /host-tmp/istiotest.log
+    fi
+    
+    v404_success_count=0
+    v404_failure_count=0
+    
+    for ((i=1; i<=50; i++))
+    do
+        output=$(curl -s -o /dev/null -w "%{http_code}" http://mockserver.istiotest-27)
+    
+        if [[ ${output} == "404" ]]; then
+            v404_success_count=$((v404_success_count + 1))
+        else
+            v404_failure_count=$((v404_failure_count + 1))
+        fi
+    
+    done
+    
+    timestamp2=$(date +"%m-%d %H:%M")
+    if [ $v404_failure_count -eq 0 ]; then
+      echo "$timestamp2 [route-http-all] succeed 404_count $v404_success_count" >> /host-tmp/istiotest.log
+    else
+      echo "$timestamp2 [route-http-all] error 404_count $v404_success_count" >> /host-tmp/istiotest.log
+    fi
+
+  rewrite_header_dr.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: DestinationRule
+    metadata:
+      name: mockserver
+      namespace: istiotest-28
+    spec:
+      host: mockserver
+      subsets:
+      - labels:
+          app: mockserver
+          version: v1
+        name: v1
+      - labels:
+          app: mockserver
+          version: v2
+        name: v2
+    EOF
+
+  rewrite_header_vs.sh: |
+    #!/bin/bash
+    kubectl apply -f - <<EOF
+    apiVersion: networking.istio.io/v1beta1
+    kind: VirtualService
+    metadata:
+      name: mockserver
+      namespace: istiotest-28
+    spec:
+      gateways:
+      - mesh
+      hosts:
+      - mockserver
+      - mockserver.com
+      - www.mockserver.com
+      http:
+      - match:
+        - uri:
+            exact: /
+          headers:
+            version:
+              exact: v1
+            name:
+              exact: v1name
+            istio:
+              exact: v1test
+        headers:
+          request:
+            add:
+              rewritetest: test
+            set:
+              name: v1nametest
+            remove:
+              - istio
+          response:
+            add:
+              resname: restest
+            set:
+              data: zhangyan
+            remove:
+              - content-type
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - uri:
+            exact: /api/test
+          headers:
+            version:
+              exact: v1
+            name:
+              exact: v1name
+            istio:
+              exact: v1test
+        headers:
+          request:
+            add:
+              rewritetest: test
+            set:
+              name: v1nametest
+            remove:
+              - istio
+          response:
+            add:
+              resname: restest
+            set:
+              ff: ff
+            remove:
+              - gg
+              - hh
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v1
+      - match:
+        - uri:
+            exact: /
+          headers:
+            version:
+              exact: v2
+            name:
+              exact: v2name
+            istio:
+              exact: v2test
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+          headers:
+            request:
+              add:
+                rewirtename: v2
+              set:
+                name: v2nametest
+              remove:
+                - istio
+            response:
+              add:
+                resee: resee
+              set:
+                data: zhangyan
+              remove:
+                - gg
+                - hh
+      - match:
+        - uri:
+            exact: /api/test
+          headers:
+            version:
+              exact: v2
+            name:
+              exact: v2name
+            istio:
+              exact: v2test
+        route:
+        - destination:
+            host: mockserver
+            port:
+              number: 80
+            subset: v2
+          headers:
+            request:
+              add:
+                rewirtename: v2
+              set:
+                name: v2nametest
+              remove:
+                - istio
+            response:
+              add:
+                resee: resee
+              set:
+                data: zhangyan
+              remove:
+                - content-type
+    EOF
+
+  check_rewrite_header.sh: |
+    #!/bin/bash
+
+    response=$(curl -i -Hversion:v1 -Hname:v1name -Histio:v1test mockserver.istiotest-28)
+    
+    code=$(echo "$response" | awk '/HTTP/ {print $2}')
+    data=$(echo "$response" | awk '/data:/ {print $2}')
+    resname=$(echo "$response" | awk '/resname:/ {print $2}')
+    content_type=$(echo "$response" | awk -F ':' '/Content-Type/ {print $2}')
+    timestamp=$(date +"%m-%d %H:%M")
+    if [[ "$data" == "zhangyan" ]] && [[ "$resname" == "restest" ]]  && [[ "$code" == "200" ]] && [[ -z "$content_type" ]]; then
+        echo "$timestamp [rewrite-header] succeed v1 match request add/response add/set/remove header $code $data $resname" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp [rewrite-header] error v1 match request add/response add/set/remove header $code $data $resname" >> /host-tmp/istiotest.log
+    fi
+    
+    response=$(curl -s -o /dev/null -w "%{http_code}" -Hversion:v1 -Hname:v1name -Histio:v1test http://mockserver.istiotest-28/api/test)
+    timestamp1=$(date +"%m-%d %H:%M")
+    if [[ "$response" == "422" ]]; then
+        echo "$timestamp1 [rewrite-header] succeed match v1 request remove header $response" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp1 [rewrite-header] error match v1 request remove header request add/response add/set/remove" >> /host-tmp/istiotest.log
+    fi
+    
+    response=$(curl -i -Hversion:v2 -Hname:v2name -Histio:v2test mockserver.istiotest-28/api/test)
+    
+    code1=$(echo "$response" | awk '/HTTP/ {print $2}')
+    data1=$(echo "$response" | awk '/data:/ {print $2}')
+    resee1=$(echo "$response" | awk '/resee:/ {print $2}')
+    content_type=$(echo "$response" | awk -F ':' '/Content-Type/ {print $2}')
+    timestamp2=$(date +"%m-%d %H:%M")
+    if [[ "$data1" == "zhangyan" ]] && [[ "$resee1" == "resee" ]]  && [[ "$code1" == "200" ]] && [[ -z "$content_type" ]]; then
+        echo "$timestamp2 [rewrite-header] succeed route v2 request add/response add/set/remove header $code $data $resname" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp2 [rewrite-header] error route v2 request add/response add/set/remove header $code $data $resname" >> /host-tmp/istiotest.log
+    fi
+    
+    response=$(curl -s -o /dev/null -w "%{http_code}" -Hversion:v2 -Hname:v2name -Histio:v2test http://mockserver.istiotest-28)
+    timestamp3=$(date +"%m-%d %H:%M")
+    if [[ "$response" == "422" ]]; then
+        echo "$timestamp3 [rewrite-header] succeed route v2 request remove header $response" >> /host-tmp/istiotest.log
+    else
+        echo "$timestamp3 [rewrite-header] error route v2 request remove header request add/response add/set/remove" >> /host-tmp/istiotest.log
+    fi
+    
+
+kind: ConfigMap
+metadata:
+  name: ecnf-config-cm

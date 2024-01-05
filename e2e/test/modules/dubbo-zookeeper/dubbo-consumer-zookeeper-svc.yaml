@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: dubbo-consumer-test-zookeeper
+  name: dubbo-consumer-test-zookeeper
+spec:
+  clusterIP: 10.222.16.30
+  ports:
+    - name: http
+      port: 8383
+      protocol: TCP
+      targetPort: 8383
+  selector:
+    app: dubbo-consumer-test-zookeeper

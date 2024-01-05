@@ -1,0 +1,43 @@
+# 需要部署在servicemesh命名空间
+
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: filter-ratelimit
+  namespace: servicemesh
+spec:
+  workloadSelector:
+    # select by label in the same namespace
+    labels:
+      istio: istio-ingressgateway
+  configPatches:
+    # The Envoy config you want to modify
+    - applyTo: HTTP_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter:
+              name: "envoy.filters.network.http_connection_manager"
+              subFilter:
+                name: "envoy.filters.http.router"
+      patch:
+        operation: INSERT_BEFORE
+        # Adds the Envoy Rate Limit Filter in HTTP filter chain.
+        value:
+          name: envoy.filters.http.ratelimit
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+            # domain can be anything! Match it to the ratelimter service config
+            domain: mockserver-ratelimit
+            failure_mode_deny: true
+            timeout: 10s
+            rate_limit_service:
+              grpc_service:
+                envoy_grpc:
+                  # default根据ratelimit的命名空间来配置
+                  cluster_name: outbound|8081||ratelimit.default.svc.cluster.local
+                  # default根据ratelimit的命名空间来配置
+                  authority: ratelimit.default.svc.cluster.local
+              transport_api_version: V3
+

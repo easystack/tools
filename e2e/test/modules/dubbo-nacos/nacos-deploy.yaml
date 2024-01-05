@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nacos
+  group: dubbo-nacos
+  labels:
+    app: nacos
+spec:
+  selector:
+    matchLabels:
+      app: nacos
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nacos
+    spec:
+      containers:
+        - name: server
+          image: hub.ecns.io/library/nacos-server:v1.4.5-slim
+          ports:
+            - containerPort: 8848
+            - containerPort: 9848
+          env:
+            - name: MODE
+              value: standalone
+            - name: TOMCAT_ACCESSLOG_ENABLED
+              value: "true"

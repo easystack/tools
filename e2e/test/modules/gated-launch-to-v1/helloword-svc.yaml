@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: helloword
+  labels:
+    app: helloword
+    service: helloword
+spec:
+  ports:
+  - port: 5000
+    name: http
+  selector:
+    app: helloword

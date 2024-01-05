@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: springboot-consumer
+  labels:
+    app: springboot-consumer
+    group: spring-demo
+spec:
+  selector:
+    matchLabels:
+      app: springboot-consumer
+  template:
+    metadata:
+      annotations:
+        "sidecar.istio.io/logLevel": debug
+      labels:
+        app: springboot-consumer
+        version: v1
+    spec:
+      nodeSelector:
+        node.es.io/role: worker
+      containers:
+        - name: consumer
+          image: hub.easystack.cn/captain/springboot-consumer-test:v0.0.1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9070

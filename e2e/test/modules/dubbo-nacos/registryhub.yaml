@@ -1,0 +1,13 @@
+apiVersion: ecns.easystack.cn/v1alpha1
+kind: RegistryHub
+metadata:
+  labels:
+    app.kubernetes.io/name: registryhub
+  name: registryhub-sample
+spec:
+  # serviceentry导出到哪个空间
+  generate_to: istiotest-33
+  # 注册中心类型
+  type: nacos
+  # 注册中心域名
+  address: "nacos.istiotest-33:8848"

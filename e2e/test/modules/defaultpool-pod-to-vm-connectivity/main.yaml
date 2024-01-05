@@ -1,0 +1,35 @@
+steps:
+- name: Starting measurement for gated launch application
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+      Params:
+        apiVersion: apps/v1
+        kind: Deployment
+    Params:
+      action: start
+      labelSelector: group = defaultpool-pod-to-vm-connectivity
+      operationTimeout: "120s"
+
+- name: Create connection-pool-tcp service and deploy
+  phases:
+  - namespaceRange:
+      min: 38
+      max: 38
+    replicasPerNamespace: 1
+    tuningSet: {{.tuningSet}}
+    objectBundle:
+    - basename: mockserver-v1-deploy
+      objectTemplatePath: modules/defaultpool-pod-to-vm-connectivity/mockserver-v1-deploy.yaml
+    - basename: mockserver-v2-deploy
+      objectTemplatePath: modules/defaultpool-pod-to-vm-connectivity/mockserver-v2-deploy.yaml
+
+
+- name: Waiting for wordpress application setup to be completed
+  measurements:
+  - Method: WaitForControlledPodsRunning
+    Instances:
+    - Identifier: WaitForRunningDeployments
+    Params:
+      action: gather

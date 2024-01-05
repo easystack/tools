@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+spec:
+  selector:
+    app: zookeeper
+  clusterIP: 10.222.16.10
+  ports:
+    - name: tcp
+      port: 2181
+      protocol: TCP
+      targetPort: 2181
